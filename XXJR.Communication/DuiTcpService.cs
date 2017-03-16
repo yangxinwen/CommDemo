@@ -45,10 +45,9 @@ namespace XXJR.Communication
         public void AcceptTcpClient(IAsyncResult ar)
         {
             var remoteClient = new DuiTcpClient(_tcpListener.EndAcceptTcpClient(ar));
-            ClientList.Add(remoteClient.SeesionId, remoteClient);            
-
+            ClientList.Add(remoteClient.SeesionId, remoteClient);
+            Console.WriteLine(ClientList.Count);
             remoteClient.DataReceived += RemoteClient_DataReceived;
-
             remoteClient.StatusChange += (e) =>
             {
                 if (e == ConnectStatus.Fault)
@@ -68,7 +67,7 @@ namespace XXJR.Communication
 
         private  void RemoteClient_DataReceived(byte[] obj)
         {
-            //DataReceived?.Invoke(obj);
+            DataReceived?.Invoke(obj);
         }
     }
 }

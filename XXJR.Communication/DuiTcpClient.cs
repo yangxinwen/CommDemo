@@ -131,7 +131,7 @@ namespace XXJR.Communication
                         if (_receivedDataQueue.TryDequeue(out model))
                         {
                             //DataReceived?.Invoke(model);
-                            Console.WriteLine(UTF8Encoding.Default.GetString(model));
+                            //Console.WriteLine(UTF8Encoding.Default.GetString(model));
                         }
                     }
                     catch (Exception ex)
@@ -159,11 +159,12 @@ namespace XXJR.Communication
                     try
                     {
                         if (_client.Connected == false)
-                            continue;
+                            break;
 
                         stream = _client.GetStream();
                         receiveCount = stream.Read(_receiveBuffer, 0, _receiveBuffer.Length);
-                        stream = null;
+                        //stream = null;
+
                         if (receiveCount <= 0)
                         {
                             Thread.Sleep(100);
@@ -172,6 +173,9 @@ namespace XXJR.Communication
                         var bytes = new byte[receiveCount];
                         Array.Copy(_receiveBuffer, 0, bytes, 0, receiveCount);
                         _receivedDataQueue.Enqueue(bytes);
+
+
+                        Console.WriteLine(UTF8Encoding.Default.GetString(bytes));
                     }
                     catch (Exception ex)
                     {

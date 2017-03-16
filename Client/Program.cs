@@ -13,15 +13,15 @@ namespace Client
         static void Main(string[] args)
         {
             var bytes = UTF8Encoding.Default.GetBytes("test");
-            for (int i = 0; i < 100; i++)
+            for (int i = 0; i < 10000; i++)
             {
                 var client = new DuiTcpClient();
                 client.EndPoint = new System.Net.IPEndPoint(IPAddress.Parse("127.0.0.1"), 1991);
                 client.StatusChange += Client_StatusChange;
                 client.DataReceived += Client_DataReceived;
                 client.Connect();
-                
-                client.Send(bytes);
+                var last = DateTime.Now;
+                //client.Send(bytes);
                 //Thread.Sleep(100);
             }
             Console.ReadLine();
