@@ -12,11 +12,12 @@ namespace XXJR.Communication
 {
     public class DuiTcpService
     {
+        public event Action<byte[]> DataReceived;
         TcpListener _tcpListener = null;
 
         public IPEndPoint EndPoint { get; set; }
 
-        public static Dictionary<string, DuiTcpClient> ClientList { get; } = new Dictionary<string, DuiTcpClient>();
+        public Dictionary<string, DuiTcpClient> ClientList { get; } = new Dictionary<string, DuiTcpClient>();
 
         public DuiTcpService()
         {
@@ -44,20 +45,30 @@ namespace XXJR.Communication
         public void AcceptTcpClient(IAsyncResult ar)
         {
             var remoteClient = new DuiTcpClient(_tcpListener.EndAcceptTcpClient(ar));
-            ClientList.Add(remoteClient.SeesionId, remoteClient);
+            ClientList.Add(remoteClient.SeesionId, remoteClient);            
+
             remoteClient.DataReceived += RemoteClient_DataReceived;
 
             remoteClient.StatusChange += (e) =>
             {
-                if (e.Status == ConnectStatus.Fault)
-                    ClientList.Remove(e.Sender.SeesionId);
+                if (e == ConnectStatus.Fault)
+                {
+                    ClientList.Remove(remoteClient.SeesionId);
+                }
             };
         }
 
-
-        private void RemoteClient_DataReceived(byte[] obj)
+        private bool Send(string sessionId, byte[] data)
         {
-            Trace.WriteLine(obj.Length);
+            if (ClientList.ContainsKey(sessionId))
+                return ClientList[sessionId].Send(data);
+            else
+                return false;
+        }
+
+        private  void RemoteClient_DataReceived(byte[] obj)
+        {
+            //DataReceived?.Invoke(obj);
         }
     }
 }

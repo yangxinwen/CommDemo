@@ -67,10 +67,26 @@ namespace XXJR.Communication
         private byte[] _receiveBuffer;
 
         public event Action<byte[]> DataReceived;
-        public event Action<StatusChangeArgs> StatusChange;
+        public event Action<ConnectStatus> StatusChange;
 
-        public ConnectStatus ConnectStatus { get; } = ConnectStatus.Created;
+        public ConnectStatus ConnectStatus { get; private set; } = ConnectStatus.Created;
         public string SeesionId { get; } = Guid.NewGuid().ToString();
+
+        private void UpdateStatus(ConnectStatus status)
+        {
+            ConnectStatus = status;
+            var list = StatusChange.GetInvocationList();
+            foreach (var item in list)
+            {
+                try
+                {
+                    ((Action<ConnectStatus>)item).Invoke(status);
+                }
+                catch (Exception)
+                {
+                }
+            }
+        }
 
         public void Connect()
         {
@@ -80,6 +96,7 @@ namespace XXJR.Communication
             {
                 _client = new TcpClient();
                 _client.Connect(IP, Port);
+                UpdateStatus(ConnectStatus.Connected);
                 if (_client.Connected == false)
                 {
                     _client = null;
@@ -89,7 +106,8 @@ namespace XXJR.Communication
                 ReceiveData();
                 StartDistributeReceiveEvent();
             }
-            _client.Connect(IP, Port);
+            else
+                _client.Connect(IP, Port);
         }
         private bool _isStartDistributing = false;
         private void StartDistributeReceiveEvent()
@@ -112,12 +130,13 @@ namespace XXJR.Communication
                     {
                         if (_receivedDataQueue.TryDequeue(out model))
                         {
-                            DataReceived?.Invoke(model);
+                            //DataReceived?.Invoke(model);
+                            Console.WriteLine(UTF8Encoding.Default.GetString(model));
                         }
                     }
                     catch (Exception ex)
                     {
-                        Trace.WriteLine(ex.Message);
+                        Console.WriteLine(ex.Message);
                     }
                 }
             });
@@ -156,10 +175,23 @@ namespace XXJR.Communication
                     }
                     catch (Exception ex)
                     {
-                        Trace.WriteLine(ex.Message);
+                        UpdateStatus(ConnectStatus.Fault);
+                        _isReceiving = false;
+                        break;
                     }
                 }
             });
+        }
+
+        public bool Send(byte[] data)
+        {
+            var count = 0;
+            if (_client != null && _client.Connected)
+                count = _client.Client.Send(data);
+            if (count > 0)
+                return true;
+            else
+                return false;
         }
 
     }
