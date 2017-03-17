@@ -139,6 +139,9 @@ namespace IOCPService
 
             // Get the socket for the accepted client connection and put it into the 
             //ReadEventArg object user token
+            if (m_readWritePool.Count <= 0)
+                return;
+
             SocketAsyncEventArgs readEventArgs = m_readWritePool.Pop();
             ((AsyncUserToken)readEventArgs.UserToken).Socket = e.AcceptSocket;
 
@@ -185,10 +188,16 @@ namespace IOCPService
             {
                 //increment the count of the total bytes receive by the server
                 Interlocked.Add(ref m_totalBytesRead, e.BytesTransferred);
-                Console.WriteLine("The server has read a total of {0} bytes", m_totalBytesRead);
+                //Console.WriteLine("The server has read a total of {0} bytes", m_totalBytesRead);
+
+                //Console.WriteLine(UTF8Encoding.Default.GetString(e.Buffer));
 
                 //echo the data received back to the client
+
+                Console.WriteLine(UTF8Encoding.Default.GetString(e.Buffer, e.Offset, e.BytesTransferred));
                 e.SetBuffer(e.Offset, e.BytesTransferred);
+
+
                 bool willRaiseEvent = token.Socket.SendAsync(e);
                 if (!willRaiseEvent)
                 {

@@ -130,8 +130,7 @@ namespace XXJR.Communication
                     {
                         if (_receivedDataQueue.TryDequeue(out model))
                         {
-                            //DataReceived?.Invoke(model);
-                            //Console.WriteLine(UTF8Encoding.Default.GetString(model));
+                            DataReceived?.Invoke(model);
                         }
                     }
                     catch (Exception ex)
@@ -172,10 +171,7 @@ namespace XXJR.Communication
                         }
                         var bytes = new byte[receiveCount];
                         Array.Copy(_receiveBuffer, 0, bytes, 0, receiveCount);
-                        _receivedDataQueue.Enqueue(bytes);
-
-
-                        Console.WriteLine(UTF8Encoding.Default.GetString(bytes));
+                        _receivedDataQueue.Enqueue(bytes);                        
                     }
                     catch (Exception ex)
                     {

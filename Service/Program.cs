@@ -30,7 +30,8 @@ namespace Service
             //        //Thread.Sleep(100);
             //    }
             //});
-            var server = new Server(8088, 1024);
+            var server = new Server(100000, 1024);
+            server.Init();
             server.Start(new IPEndPoint(IPAddress.Any,1991));
             Console.WriteLine("服务器已启动....");
             System.Console.ReadLine();
