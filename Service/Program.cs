@@ -5,6 +5,7 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using IOCPService;
 using XXJR.Communication;
 
 namespace Service
@@ -13,10 +14,10 @@ namespace Service
     {
         static void Main(string[] args)
         {
-            var service =new DuiTcpService();
-            service.EndPoint = new System.Net.IPEndPoint(IPAddress.Any, 1991);
-            service.DataReceived += Service_DataReceived;
-            service.Start();
+            //var service =new DuiTcpService();
+            //service.EndPoint = new System.Net.IPEndPoint(IPAddress.Any, 1991);
+            //service.DataReceived += Service_DataReceived;
+            //service.Start();
 
 
             //Task.Factory.StartNew(()=>
@@ -29,6 +30,10 @@ namespace Service
             //        //Thread.Sleep(100);
             //    }
             //});
+            var server = new Server(8088, 1024);
+            server.Start(new IPEndPoint(IPAddress.Any,1991));
+            Console.WriteLine("服务器已启动....");
+            System.Console.ReadLine();
 
             Console.ReadLine();
         }
