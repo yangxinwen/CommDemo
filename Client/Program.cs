@@ -24,11 +24,13 @@ namespace Client
         private static void TestClient()
         {
             var clients = new List<SocketClient>();
-            for (int i = 0; i < 100; i++)
+            for (int i = 0; i < 10; i++)
             {
                 try
                 {
                     var client = new SocketClient("127.0.0.1", 1991);
+                    client.HeartBeatsEnable = true;
+                    client.HeartBeatSpan = 10;
                     client.OnConnChangeEvent += Client_OnConnChangeEvent;
                     client.OnReceivedEvent += Client_OnReceivedEvent;
                     client.Connect();
@@ -44,18 +46,18 @@ namespace Client
 
             Console.WriteLine("----------------");
 
-            for (int i = 0; i < 10000; i++)
+            for (int i = 0; i < 100; i++)
             {
                 //Console.WriteLine("test" + (i % 10) + "发送");
                 clients[i % 10].Send(UTF8Encoding.Default.GetBytes("test" + (i % 10) + "发送"));
-                //Thread.Sleep(1000);
+                Thread.Sleep(1000*7);
             }
             Console.ReadLine();
         }
 
         private static void Client_OnReceivedEvent(XXJR.Communication.DataReceivedArgs obj)
         {
-            Console.WriteLine(UTF8Encoding.Default.GetString(obj.Data));
+            Console.WriteLine(Encoding.UTF8.GetString(obj.Data));
         }
 
         private static void Client_OnConnChangeEvent(XXJR.Communication.ConnStatusChangeArgs obj)

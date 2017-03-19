@@ -268,32 +268,32 @@ namespace SocketAsyncServer
         /// </summary>
         /// <param name="e"></param>
         /// <param name="data"></param>
-        public void SendAsyn(string sessionId, byte[] data)
-        {
-            if (_clientDic.ContainsKey(sessionId))
-            {
-                var e = _clientDic[sessionId].SocketArgs;
-                if (e.SocketError == SocketError.Success)
-                {
-                    Socket s = e.AcceptSocket;//和客户端关联的socket
-                    if (s.Connected)
-                    {
-                        Array.Copy(data, 0, e.Buffer, 0, data.Length);//设置发送数据
+        //public void SendAsyn(string sessionId, byte[] data)
+        //{
+        //    if (_clientDic.ContainsKey(sessionId))
+        //    {
+        //        var e = _clientDic[sessionId].SocketArgs;
+        //        if (e.SocketError == SocketError.Success)
+        //        {
+        //            Socket s = e.AcceptSocket;//和客户端关联的socket
+        //            if (s.Connected)
+        //            {
+        //                Array.Copy(data, 0, e.Buffer, 0, data.Length);//设置发送数据
 
-                        //e.SetBuffer(data, 0, data.Length); //设置发送数据
-                        if (!s.SendAsync(e))//投递发送请求，这个函数有可能同步发送出去，这时返回false，并且不会引发SocketAsyncEventArgs.Completed事件
-                        {
-                            // 同步发送时处理发送完成事件
-                            ProcessSend(e);
-                        }
-                        else
-                        {
-                            CloseClientSocket(e);
-                        }
-                    }
-                }
-            }
-        }
+        //                e.SetBuffer(data, 0, data.Length); //设置发送数据
+        //                if (!s.SendAsync(e))//投递发送请求，这个函数有可能同步发送出去，这时返回false，并且不会引发SocketAsyncEventArgs.Completed事件
+        //                {
+        //                    // 同步发送时处理发送完成事件
+        //                    ProcessSend(e);
+        //                }
+        //                else
+        //                {
+        //                    CloseClientSocket(e);
+        //                }
+        //            }
+        //        }
+        //    }
+        //}
 
         /// <summary>
         /// 同步发送数据

@@ -55,7 +55,7 @@ namespace SocketAsyncServer
             client.Connect();
 
             var data=UTF8Encoding.Default.GetBytes("123456");
-            client.SendAsyn(data);
+            client.Send(data);
             //client.SendReceive("dfdfdf");
         }
 

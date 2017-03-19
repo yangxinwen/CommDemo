@@ -63,7 +63,7 @@ namespace Service
 
         private static void Service_OnReceivedEvent(DataReceivedArgs obj)
         {
-            Console.WriteLine("data:"+UTF8Encoding.Default.GetString(obj.Data));
+            Console.WriteLine("data:"+ Encoding.UTF8.GetString(obj.Data));
             service.Send(obj.SessionId, obj.Data);
         }
 

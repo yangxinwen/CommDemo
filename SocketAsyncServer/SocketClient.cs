@@ -12,10 +12,31 @@ namespace SocketAsyncServer
     /// </summary>
     public sealed class SocketClient : IDisposable
     {
+
+        private int _heartBeatSpan = 120;
         /// <summary>
-        /// Constants for socket operations.
+        /// 心跳时间(s)最低设置30s，默认3分钟
         /// </summary>
-        private const Int32 ReceiveOperation = 1, SendOperation = 0;
+        public int HeartBeatSpan
+        {
+            get
+            {
+                return _heartBeatSpan;
+            }
+            set
+            {
+                if (_heartBeatSpan < 30)
+                    _heartBeatSpan = 30;
+                else
+                    _heartBeatSpan = value;
+            }
+        }
+        /// <summary>
+        /// 是否开启心跳,连接前设置
+        /// </summary>
+        public bool HeartBeatsEnable { get; set; } = true;
+
+        private System.Timers.Timer _heartBeatsTimer;
 
         /// <summary>
         /// The socket used to send/receive messages.
@@ -87,11 +108,6 @@ namespace SocketAsyncServer
             //connectArgs.SetBuffer(new byte[1024], 0, 1024);
             connectArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnConnect);
             _socket.ConnectAsync(connectArgs);
-            SocketError errorCode = connectArgs.SocketError;
-            if (errorCode != SocketError.Success)
-            {
-                RaiseOnConnChange(new ConnStatusChangeArgs(string.Empty, ConnectStatus.Connected));
-            }
         }
 
         /// <summary>
@@ -109,6 +125,7 @@ namespace SocketAsyncServer
 
         private void RaiseOnReceive(DataReceivedArgs args)
         {
+            _lastExchangeTime = Environment.TickCount;
             OnReceivedEvent?.Invoke(args);
         }
 
@@ -164,6 +181,8 @@ namespace SocketAsyncServer
             }
         }
 
+        private int _buffer = 1024;
+
         SocketAsyncEventArgs so = null;
         private void ProcessConnect(SocketAsyncEventArgs e)
         {
@@ -173,16 +192,36 @@ namespace SocketAsyncServer
             {
                 so = new SocketAsyncEventArgs();
                 so.Completed += new EventHandler<SocketAsyncEventArgs>(OnConnect);
-                so.UserToken = new AsyncUserToken(e);
-                so.SetBuffer(new Byte[1024], 0, 1024);
+                so.UserToken = new AsyncUserToken(so);
+                so.SetBuffer(new Byte[_buffer], 0, _buffer);
                 //so.RemoteEndPoint = hostEndPoint;
                 if (_socket.ReceiveAsync(so) == false)
                     ProcessReceive(so);
 
-                ConnStatus = ConnectStatus.Connected;        
+                ConnStatus = ConnectStatus.Connected;
+
+                InitHeartBeatsTimer();
             }
             else
                 ConnStatus = ConnectStatus.Fault;
+        }
+        public byte[] HeartBeatsData { get; set; } = Encoding.UTF8.GetBytes("HeartBeats");
+        private int _lastExchangeTime = Environment.TickCount;
+        private void InitHeartBeatsTimer()
+        {
+            if (HeartBeatsEnable == false)
+                return;
+            _heartBeatsTimer = new System.Timers.Timer(10 * 1000);
+            _heartBeatsTimer.Elapsed += _heartBeatsTimer_Elapsed;
+            _heartBeatsTimer.Start();
+        }
+
+        private void _heartBeatsTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        {
+            if (Environment.TickCount - _lastExchangeTime > HeartBeatSpan * 1000)
+            {
+                Send(HeartBeatsData);
+            }
         }
 
         /// <summary>
@@ -223,32 +262,32 @@ namespace SocketAsyncServer
         /// </summary>
         /// <param name="e"></param>
         /// <param name="data"></param>
-        public void SendAsyn(byte[] data)
-        {
-            if (so != null)
-            {
-                var e = so;
-                if (e.SocketError == SocketError.Success)
-                {
-                    Socket s = _socket;//和客户端关联的socket
-                    if (s.Connected)
-                    {
-                        Array.Copy(data, 0, e.Buffer, 0, data.Length);//设置发送数据
+        //public void SendAsyn(byte[] data)
+        //{
+        //    if (so != null)
+        //    {
+        //        var e = so;
+        //        if (e.SocketError == SocketError.Success)
+        //        {
+        //            Socket s = _socket;//和客户端关联的socket
+        //            if (s.Connected)
+        //            {
+        //                Array.Copy(data, 0, e.Buffer, 0, data.Length);//设置发送数据
 
-                        e.SetBuffer(data, 0, data.Length); //设置发送数据
-                        if (!s.SendAsync(e))//投递发送请求，这个函数有可能同步发送出去，这时返回false，并且不会引发SocketAsyncEventArgs.Completed事件
-                        {
-                            // 同步发送时处理发送完成事件
-                            //ProcessSend(e);
-                        }
-                        else
-                        {
-                            //CloseClientSocket(e);
-                        }
-                    }
-                }
-            }
-        }
+        //                e.SetBuffer(data, 0, data.Length); //设置发送数据
+        //                if (!s.SendAsync(e))//投递发送请求，这个函数有可能同步发送出去，这时返回false，并且不会引发SocketAsyncEventArgs.Completed事件
+        //                {
+        //                    // 同步发送时处理发送完成事件
+        //                    //ProcessSend(e);
+        //                }
+        //                else
+        //                {
+        //                    //CloseClientSocket(e);
+        //                }
+        //            }
+        //        }
+        //    }
+        //}
 
         /// <summary>
         /// 同步发送数据
@@ -259,6 +298,8 @@ namespace SocketAsyncServer
         /// <returns></returns>
         public int Send(byte[] data, int timeout = 0)
         {
+            _lastExchangeTime = Environment.TickCount;
+
             int sent = 0; // how many bytes is already sent
             if (connectArgs != null)
             {
