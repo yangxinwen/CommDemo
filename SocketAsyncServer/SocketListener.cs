@@ -438,6 +438,16 @@ namespace SocketAsyncServer
             else
                 return null;
         }
+        /// <summary>
+        /// 根据sessionId获取指定客户端的socket
+        /// </summary>
+        /// <param name="sessionId"></param>
+        /// <returns></returns>
+        public void CloseClient(string sessionId)
+        {
+            if (_clientDic.ContainsKey(sessionId))
+                CloseClientSocket(_clientDic[sessionId].AsynArgs);
+        }
 
         /// <summary>
         /// Close the socket associated with the client.
@@ -462,7 +472,7 @@ namespace SocketAsyncServer
         {
             foreach (var item in _clientDic)
             {
-                CloseClientSocket(item.Value.SocketArgs);
+                CloseClientSocket(item.Value.AsynArgs);
             }
 
             this.listenSocket.Close();

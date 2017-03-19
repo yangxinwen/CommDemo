@@ -23,22 +23,22 @@ namespace SocketAsyncServer
 
         #region Properties
 
-        private int _buffer = 1024;
+        private int _bufferSize = 1024;
         /// <summary>
         /// socket收发缓存大小
         /// </summary>
-        public int Buffer
+        public int BufferSize
         {
             get
             {
-                return _buffer;
+                return _bufferSize;
             }
             set
             {
                 if (value < 1024)
-                    _buffer = 1024;
+                    _bufferSize = 1024;
                 else
-                    _buffer = value;
+                    _bufferSize = value;
             }
         }
 
@@ -136,7 +136,7 @@ namespace SocketAsyncServer
         {
             if (HeartBeatsEnable == false)
                 return;
-            _heartBeatsTimer = new System.Timers.Timer(10 * 1000);
+            _heartBeatsTimer = new System.Timers.Timer(3 * 1000);
             _heartBeatsTimer.Elapsed += (s, e) =>
             {
                 if (Environment.TickCount - _lastExchangeTime > HeartBeatSpan * 1000)
@@ -251,7 +251,7 @@ namespace SocketAsyncServer
                 var so = new SocketAsyncEventArgs();
                 so.Completed += new EventHandler<SocketAsyncEventArgs>(OnComplete);
                 so.UserToken = new AsyncUserToken(so);
-                so.SetBuffer(new Byte[_buffer], 0, _buffer);
+                so.SetBuffer(new Byte[_bufferSize], 0, _bufferSize);
                 //so.RemoteEndPoint = hostEndPoint;
                 if (_socket.ReceiveAsync(so) == false)
                     ProcessReceive(so);
