@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading;
+using SocketAsyncServer;
 using XXJR.Communication;
 
 namespace Client
@@ -11,6 +12,59 @@ namespace Client
     class Program
     {
         static void Main(string[] args)
+        {
+
+
+            TestClient();
+            Console.ReadLine();
+        }
+
+
+
+        private static void TestClient()
+        {
+            var clients = new List<SocketClient>();
+            for (int i = 0; i < 100; i++)
+            {
+                try
+                {
+                    var client = new SocketClient("127.0.0.1", 1991);
+                    client.OnConnChangeEvent += Client_OnConnChangeEvent;
+                    client.OnReceivedEvent += Client_OnReceivedEvent;
+                    client.Connect();
+                    //var bytes = UTF8Encoding.Default.GetBytes("test" + i);
+                    //client.Send(bytes);
+                    clients.Add(client);
+                }
+                catch (Exception)
+                {
+                }
+            }
+
+
+            Console.WriteLine("----------------");
+
+            for (int i = 0; i < 10000; i++)
+            {
+                //Console.WriteLine("test" + (i % 10) + "发送");
+                clients[i % 10].Send(UTF8Encoding.Default.GetBytes("test" + (i % 10) + "发送"));
+                //Thread.Sleep(1000);
+            }
+            Console.ReadLine();
+        }
+
+        private static void Client_OnReceivedEvent(XXJR.Communication.DataReceivedArgs obj)
+        {
+            Console.WriteLine(UTF8Encoding.Default.GetString(obj.Data));
+        }
+
+        private static void Client_OnConnChangeEvent(XXJR.Communication.ConnStatusChangeArgs obj)
+        {
+            Console.WriteLine(obj.ConnStatus.ToString());
+        }
+
+
+        private static void TestOldClient()
         {
             var clients = new List<DuiTcpClient>();
             for (int i = 0; i < 10; i++)
@@ -36,13 +90,11 @@ namespace Client
 
             for (int i = 0; i < 1000; i++)
             {
-                clients[i%10].Send(UTF8Encoding.Default.GetBytes("test" + i + "发送"));
+                clients[i % 10].Send(UTF8Encoding.Default.GetBytes("test" + i + "发送"));
                 Thread.Sleep(1000);
             }
-
-
-            Console.ReadLine();
         }
+
 
         private static void Client_DataReceived(byte[] obj)
         {

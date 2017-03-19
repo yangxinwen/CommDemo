@@ -10,7 +10,7 @@ namespace SocketAsyncServer
     /// <summary>
     /// Implements the connection logic for the socket client.
     /// </summary>
-    internal sealed class SocketClient : IDisposable
+    public sealed class SocketClient : IDisposable
     {
         /// <summary>
         /// Constants for socket operations.
@@ -46,20 +46,6 @@ namespace SocketAsyncServer
         private IPEndPoint hostEndPoint;
 
         /// <summary>
-        /// Signals a connection.
-        /// </summary>
-        private static AutoResetEvent autoConnectEvent = new AutoResetEvent(false);
-
-        /// <summary>
-        /// Signals the send/receive operation.
-        /// </summary>
-        private static AutoResetEvent[] autoSendReceiveEvents = new AutoResetEvent[]
-        {
-            new AutoResetEvent(false),
-            new AutoResetEvent(false)
-        };
-
-        /// <summary>
         /// 客户端连接状态变更事件
         /// </summary>
         public event Action<ConnStatusChangeArgs> OnConnChangeEvent;
@@ -75,7 +61,7 @@ namespace SocketAsyncServer
         /// </summary>
         /// <param name="hostName">Name of the host where the listener is running.</param>
         /// <param name="port">Number of the TCP port from the listener.</param>
-        internal SocketClient(String hostName, Int32 port)
+        public SocketClient(String hostName, Int32 port)
         {
             // Get host related information.
             IPHostEntry host = Dns.GetHostEntry(hostName);
@@ -93,17 +79,14 @@ namespace SocketAsyncServer
         /// Connect to the host.
         /// </summary>
         /// <returns>True if connection has succeded, else false.</returns>
-        internal void Connect()
+        public void Connect()
         {
             connectArgs = new SocketAsyncEventArgs();
             connectArgs.UserToken = this._socket;
             connectArgs.RemoteEndPoint = this.hostEndPoint;
-            connectArgs.SetBuffer(new byte[1024], 0, 1024);
+            //connectArgs.SetBuffer(new byte[1024], 0, 1024);
             connectArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnConnect);
-
             _socket.ConnectAsync(connectArgs);
-            autoConnectEvent.WaitOne();
-
             SocketError errorCode = connectArgs.SocketError;
             if (errorCode != SocketError.Success)
             {
@@ -114,7 +97,7 @@ namespace SocketAsyncServer
         /// <summary>
         /// Disconnect from the host.
         /// </summary>
-        internal void Disconnect()
+        public void Disconnect()
         {
             _socket.Disconnect(false);
         }
@@ -148,7 +131,19 @@ namespace SocketAsyncServer
         }
         private void ProcessSend(SocketAsyncEventArgs e)
         {
-            autoSendReceiveEvents[SendOperation].Set();
+            if (e.SocketError == SocketError.Success)
+            {
+                AsyncUserToken token = e.UserToken as AsyncUserToken;
+
+                if (!token.Socket.ReceiveAsync(e))
+                {
+                    this.ProcessReceive(e);
+                }
+            }
+            else
+            {
+                this.ProcessError(e);
+            }
         }
         private void ProcessReceive(SocketAsyncEventArgs e)
         {
@@ -172,49 +167,22 @@ namespace SocketAsyncServer
         SocketAsyncEventArgs so = null;
         private void ProcessConnect(SocketAsyncEventArgs e)
         {
-            // Signals the end of connection.
-            autoConnectEvent.Set();
-            so = new SocketAsyncEventArgs();
-            so.Completed +=new EventHandler<SocketAsyncEventArgs>(OnConnect);
-            so.UserToken = new AsyncUserToken(e);
-            so.SetBuffer(new Byte[1024], 0, 1024);
-            so.RemoteEndPoint = hostEndPoint;
-            _socket.ReceiveAsync(so);
+
             // Set the flag for socket connected.
             if (e.SocketError == SocketError.Success)
-                ConnStatus = ConnectStatus.Connected;
+            {
+                so = new SocketAsyncEventArgs();
+                so.Completed += new EventHandler<SocketAsyncEventArgs>(OnConnect);
+                so.UserToken = new AsyncUserToken(e);
+                so.SetBuffer(new Byte[1024], 0, 1024);
+                //so.RemoteEndPoint = hostEndPoint;
+                if (_socket.ReceiveAsync(so) == false)
+                    ProcessReceive(so);
+
+                ConnStatus = ConnectStatus.Connected;        
+            }
             else
                 ConnStatus = ConnectStatus.Fault;
-        }
-
-        private void OnReceive(object sender, SocketAsyncEventArgs e)
-        {
-            // Signals the end of receive.
-            autoSendReceiveEvents[SendOperation].Set();
-        }
-
-        private void OnSend(object sender, SocketAsyncEventArgs e)
-        {
-            // Signals the end of send.
-            autoSendReceiveEvents[ReceiveOperation].Set();
-
-            if (e.SocketError == SocketError.Success)
-            {
-                if (e.LastOperation == SocketAsyncOperation.Send)
-                {
-                    // Prepare receiving.
-                    Socket s = e.UserToken as Socket;
-
-                    byte[] receiveBuffer = new byte[255];
-                    e.SetBuffer(receiveBuffer, 0, receiveBuffer.Length);
-                    e.Completed += new EventHandler<SocketAsyncEventArgs>(OnReceive);
-                    s.ReceiveAsync(e);
-                }
-            }
-            else
-            {
-                this.ProcessError(e);
-            }
         }
 
         /// <summary>
@@ -246,40 +214,6 @@ namespace SocketAsyncServer
             ConnStatus = ConnectStatus.Fault;
         }
 
-        /// <summary>
-        /// Exchange a message with the host.
-        /// </summary>
-        /// <param name="message">Message to send.</param>
-        /// <returns>Message sent by the host.</returns>
-        internal String SendReceive(String message)
-        {
-            if (this.ConnStatus == ConnectStatus.Connected)
-            {
-                // Create a buffer to send.
-                Byte[] sendBuffer = Encoding.ASCII.GetBytes(message);
-
-                // Prepare arguments for send/receive operation.
-                SocketAsyncEventArgs completeArgs = new SocketAsyncEventArgs();
-                completeArgs.SetBuffer(sendBuffer, 0, sendBuffer.Length);
-                completeArgs.UserToken = this._socket;
-                completeArgs.RemoteEndPoint = this.hostEndPoint;
-                completeArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnSend);
-
-                // Start sending asyncronally.
-                _socket.SendAsync(completeArgs);
-
-                // Wait for the send/receive completed.
-                AutoResetEvent.WaitAll(autoSendReceiveEvents);
-
-                // Return data from SocketAsyncEventArgs buffer.
-                return Encoding.ASCII.GetString(completeArgs.Buffer, completeArgs.Offset, completeArgs.BytesTransferred);
-            }
-            else
-            {
-                throw new SocketException((Int32)SocketError.NotConnected);
-            }
-        }
-
 
         #region 发送数据
 
@@ -296,7 +230,7 @@ namespace SocketAsyncServer
                 var e = so;
                 if (e.SocketError == SocketError.Success)
                 {
-                    Socket s =_socket;//和客户端关联的socket
+                    Socket s = _socket;//和客户端关联的socket
                     if (s.Connected)
                     {
                         Array.Copy(data, 0, e.Buffer, 0, data.Length);//设置发送数据
@@ -374,9 +308,6 @@ namespace SocketAsyncServer
         /// </summary>
         public void Dispose()
         {
-            autoConnectEvent.Close();
-            autoSendReceiveEvents[SendOperation].Close();
-            autoSendReceiveEvents[ReceiveOperation].Close();
             if (this._socket.Connected)
             {
                 this._socket.Close();
