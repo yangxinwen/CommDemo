@@ -17,6 +17,7 @@ namespace SocketAsyncServer
     /// </summary>
     public sealed class SocketListener
     {
+        #region Fields  
         /// <summary>
         /// The socket used to listen for incoming connection requests.
         /// </summary>
@@ -27,6 +28,20 @@ namespace SocketAsyncServer
         /// </summary>
         private Int32 bufferSize;
 
+        /// <summary>
+        /// Pool of reusable SocketAsyncEventArgs objects for write, read and accept socket operations.
+        /// </summary>
+        private SocketAsyncEventArgsPool readWritePool;
+
+        /// <summary>
+        /// Controls the total number of clients connected to the server.
+        /// </summary>
+        private Semaphore semaphoreAcceptedClients;
+
+        private Dictionary<string, AsyncUserToken> _clientDic = new Dictionary<string, AsyncUserToken>();
+        #endregion
+
+        #region Properties
         /// <summary>
         /// The total number of clients connected to the server.
         /// </summary>
@@ -49,28 +64,21 @@ namespace SocketAsyncServer
             {
                 return _maxConnCount;
             }
-            
+
         }
 
         /// <summary>
-        /// Pool of reusable SocketAsyncEventArgs objects for write, read and accept socket operations.
-        /// </summary>
-        private SocketAsyncEventArgsPool readWritePool;
-
-        /// <summary>
-        /// Controls the total number of clients connected to the server.
-        /// </summary>
-        private Semaphore semaphoreAcceptedClients;
-
-        private Dictionary<string, AsyncUserToken> _clientDic = new Dictionary<string, AsyncUserToken>();
-        /// <summary>
         /// 客户端连接状态变更事件
         /// </summary>
-        public event Action<ConnStatusChangeArgs> OnClientConnChangeEvent;
+        public event Action<ConnStatusChangeArgs> OnClientConnChange;
         /// <summary>
         /// 数据接收事件
         /// </summary>
-        public event Action<DataReceivedArgs> OnReceivedEvent;
+        public event Action<DataReceivedArgs> OnReceived;
+
+        #endregion
+
+        #region Constructors
 
         /// <summary>
         /// Create an uninitialized server instance.  
@@ -99,41 +107,46 @@ namespace SocketAsyncServer
             }
         }
 
+        #endregion
+
+        #region Methods
+
         /// <summary>
-        /// Close the socket associated with the client.
+        /// Starts the server listening for incoming connection requests.
         /// </summary>
-        /// <param name="e">SocketAsyncEventArg associated with the completed send/receive operation.</param>
-        private void CloseClientSocket(SocketAsyncEventArgs e)
+        /// <param name="port">Port where the server will listen for connection requests.</param>
+        public void Start(Int32 port)
         {
-            AsyncUserToken token = e.UserToken as AsyncUserToken;
-            RemoveClient(token.SessionId);
-            token.Socket.Close();
-            // Decrement the counter keeping track of the total number of clients connected to the server.
-            this.semaphoreAcceptedClients.Release();
+            // Get host related information.
+            IPAddress[] addressList = Dns.GetHostEntry(Environment.MachineName).AddressList;
 
-            // Free the SocketAsyncEventArg so they can be reused by another client.
-            this.readWritePool.Push(e);
-        }
+            // Get endpoint for the listener.
+            IPEndPoint localEndPoint = new IPEndPoint(addressList[addressList.Length - 1], port);
 
-        private void AddClient(string sessionId, AsyncUserToken token)
-        {
-            _clientDic.Add(sessionId, token);
-            RaiseOnClientConnChange(new ConnStatusChangeArgs(sessionId, ConnectStatus.Connected));
-        }
-        private void RemoveClient(string sessionId)
-        {
-            _clientDic.Remove(sessionId);
-            RaiseOnClientConnChange(new ConnStatusChangeArgs(sessionId, ConnectStatus.Closed));
-        }
+            // Create the socket which listens for incoming connections.
+            this.listenSocket = new Socket(localEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            this.listenSocket.ReceiveBufferSize = this.bufferSize;
+            this.listenSocket.SendBufferSize = this.bufferSize;
 
-        private void RaiseOnClientConnChange(ConnStatusChangeArgs args)
-        {
-            OnClientConnChangeEvent?.Invoke(args);
-        }
+            if (localEndPoint.AddressFamily == AddressFamily.InterNetworkV6)
+            {
+                // Set dual-mode (IPv4 & IPv6) for the socket listener.
+                // 27 is equivalent to IPV6_V6ONLY socket option in the winsock snippet below,
+                // based on http://blogs.msdn.com/wndp/archive/2006/10/24/creating-ip-agnostic-applications-part-2-dual-mode-sockets.aspx
+                this.listenSocket.SetSocketOption(SocketOptionLevel.IPv6, (SocketOptionName)27, false);
+                this.listenSocket.Bind(new IPEndPoint(IPAddress.IPv6Any, localEndPoint.Port));
+            }
+            else
+            {
+                // Associate the socket with the local endpoint.
+                this.listenSocket.Bind(localEndPoint);
+            }
 
-        private void RaiseOnReceive(DataReceivedArgs args)
-        {
-            OnReceivedEvent?.Invoke(args);
+            // Start the server.
+            this.listenSocket.Listen(this._maxConnCount);
+
+            // Post accepts on the listening socket.
+            this.StartAccept(null);
         }
 
         /// <summary>
@@ -145,6 +158,31 @@ namespace SocketAsyncServer
         private void OnAcceptCompleted(object sender, SocketAsyncEventArgs e)
         {
             this.ProcessAccept(e);
+        }
+        
+        /// <summary>
+        /// Begins an operation to accept a connection request from the client.
+        /// </summary>
+        /// <param name="acceptEventArg">The context object to use when issuing 
+        /// the accept operation on the server's listening socket.</param>
+        private void StartAccept(SocketAsyncEventArgs acceptEventArg)
+        {
+            if (acceptEventArg == null)
+            {
+                acceptEventArg = new SocketAsyncEventArgs();
+                acceptEventArg.Completed += new EventHandler<SocketAsyncEventArgs>(OnAcceptCompleted);
+            }
+            else
+            {
+                // Socket must be cleared since the context object is being reused.
+                acceptEventArg.AcceptSocket = null;
+            }
+
+            this.semaphoreAcceptedClients.WaitOne();
+            if (!this.listenSocket.AcceptAsync(acceptEventArg))
+            {
+                this.ProcessAccept(acceptEventArg);
+            }
         }
 
         /// <summary>
@@ -260,6 +298,26 @@ namespace SocketAsyncServer
             }
         }
 
+        private void AddClient(string sessionId, AsyncUserToken token)
+        {
+            _clientDic.Add(sessionId, token);
+            RaiseOnClientConnChange(new ConnStatusChangeArgs(sessionId, ConnectStatus.Connected));
+        }
+        private void RemoveClient(string sessionId)
+        {
+            _clientDic.Remove(sessionId);
+            RaiseOnClientConnChange(new ConnStatusChangeArgs(sessionId, ConnectStatus.Closed));
+        }
+
+        private void RaiseOnClientConnChange(ConnStatusChangeArgs args)
+        {
+            OnClientConnChange?.Invoke(args);
+        }
+
+        private void RaiseOnReceive(DataReceivedArgs args)
+        {
+            OnReceived?.Invoke(args);
+        }
 
         #region 发送数据
 
@@ -302,7 +360,7 @@ namespace SocketAsyncServer
         /// <param name="data"></param>
         /// <param name="timeout">超时时间(ms)</param>
         /// <returns></returns>
-        public int Send(string sessionId, byte[] data, int timeout=10*1000)
+        public int Send(string sessionId, byte[] data, int timeout = 10 * 1000)
         {
             int sent = 0; // how many bytes is already sent
             if (_clientDic.ContainsKey(sessionId))
@@ -366,69 +424,35 @@ namespace SocketAsyncServer
                 this.ProcessError(e);
             }
         }
-        #endregion
+        #endregion       
 
         /// <summary>
-        /// Starts the server listening for incoming connection requests.
+        /// 根据sessionId获取指定客户端的socket
         /// </summary>
-        /// <param name="port">Port where the server will listen for connection requests.</param>
-        public void Start(Int32 port)
+        /// <param name="sessionId"></param>
+        /// <returns></returns>
+        public Socket GetClient(string sessionId)
         {
-            // Get host related information.
-            IPAddress[] addressList = Dns.GetHostEntry(Environment.MachineName).AddressList;
-
-            // Get endpoint for the listener.
-            IPEndPoint localEndPoint = new IPEndPoint(addressList[addressList.Length - 1], port);
-
-            // Create the socket which listens for incoming connections.
-            this.listenSocket = new Socket(localEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-            this.listenSocket.ReceiveBufferSize = this.bufferSize;
-            this.listenSocket.SendBufferSize = this.bufferSize;
-
-            if (localEndPoint.AddressFamily == AddressFamily.InterNetworkV6)
-            {
-                // Set dual-mode (IPv4 & IPv6) for the socket listener.
-                // 27 is equivalent to IPV6_V6ONLY socket option in the winsock snippet below,
-                // based on http://blogs.msdn.com/wndp/archive/2006/10/24/creating-ip-agnostic-applications-part-2-dual-mode-sockets.aspx
-                this.listenSocket.SetSocketOption(SocketOptionLevel.IPv6, (SocketOptionName)27, false);
-                this.listenSocket.Bind(new IPEndPoint(IPAddress.IPv6Any, localEndPoint.Port));
-            }
+            if (_clientDic.ContainsKey(sessionId))
+                return _clientDic[sessionId].Socket;
             else
-            {
-                // Associate the socket with the local endpoint.
-                this.listenSocket.Bind(localEndPoint);
-            }
-
-            // Start the server.
-            this.listenSocket.Listen(this._maxConnCount);
-
-            // Post accepts on the listening socket.
-            this.StartAccept(null);
+                return null;
         }
 
         /// <summary>
-        /// Begins an operation to accept a connection request from the client.
+        /// Close the socket associated with the client.
         /// </summary>
-        /// <param name="acceptEventArg">The context object to use when issuing 
-        /// the accept operation on the server's listening socket.</param>
-        private void StartAccept(SocketAsyncEventArgs acceptEventArg)
+        /// <param name="e">SocketAsyncEventArg associated with the completed send/receive operation.</param>
+        private void CloseClientSocket(SocketAsyncEventArgs e)
         {
-            if (acceptEventArg == null)
-            {
-                acceptEventArg = new SocketAsyncEventArgs();
-                acceptEventArg.Completed += new EventHandler<SocketAsyncEventArgs>(OnAcceptCompleted);
-            }
-            else
-            {
-                // Socket must be cleared since the context object is being reused.
-                acceptEventArg.AcceptSocket = null;
-            }
+            AsyncUserToken token = e.UserToken as AsyncUserToken;
+            RemoveClient(token.SessionId);
+            token.Socket.Close();
+            // Decrement the counter keeping track of the total number of clients connected to the server.
+            this.semaphoreAcceptedClients.Release();
 
-            this.semaphoreAcceptedClients.WaitOne();
-            if (!this.listenSocket.AcceptAsync(acceptEventArg))
-            {
-                this.ProcessAccept(acceptEventArg);
-            }
+            // Free the SocketAsyncEventArg so they can be reused by another client.
+            this.readWritePool.Push(e);
         }
 
         /// <summary>
@@ -443,5 +467,7 @@ namespace SocketAsyncServer
 
             this.listenSocket.Close();
         }
+
+        #endregion
     }
 }

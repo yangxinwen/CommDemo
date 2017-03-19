@@ -12,8 +12,103 @@ namespace SocketAsyncServer
     /// </summary>
     public sealed class SocketClient : IDisposable
     {
+        #region Fields
+        /// <summary>
+        /// Listener endpoint.
+        /// </summary>
+        private IPEndPoint hostEndPoint;
 
+
+        #endregion
+
+        #region Properties
+
+        private int _buffer = 1024;
+        /// <summary>
+        /// socket收发缓存大小
+        /// </summary>
+        public int Buffer
+        {
+            get
+            {
+                return _buffer;
+            }
+            set
+            {
+                if (value < 1024)
+                    _buffer = 1024;
+                else
+                    _buffer = value;
+            }
+        }
+
+        /// <summary>
+        /// The socket used to send/receive messages.
+        /// </summary>
+        private Socket _socket;
+
+        public Socket Socket
+        {
+            get
+            {
+                return _socket;
+            }
+        }
+
+        private ConnectStatus _connStatus;
+
+        public ConnectStatus ConnStatus
+        {
+            private set
+            {
+                if (_connStatus != value)
+                {
+                    _connStatus = value;
+                    RaiseOnConnChange(new ConnStatusChangeArgs(value));
+                }
+            }
+            get
+            {
+                return _connStatus;
+            }
+        }
+
+        /// <summary>
+        /// 客户端连接状态变更事件
+        /// </summary>
+        public event Action<ConnStatusChangeArgs> OnConnChangeEvent;
+        /// <summary>
+        /// 数据接收事件
+        /// </summary>
+        public event Action<DataReceivedArgs> OnReceivedEvent;
+        #endregion
+
+        #region Constructors
+        /// <summary>
+        /// Create an uninitialized client instance.  
+        /// To start the send/receive processing
+        /// call the Connect method followed by SendReceive method.
+        /// </summary>
+        /// <param name="hostName">Name of the host where the listener is running.</param>
+        /// <param name="port">Number of the TCP port from the listener.</param>
+        public SocketClient(String hostName, Int32 port)
+        {
+            // Get host related information.
+            IPHostEntry host = Dns.GetHostEntry(hostName);
+
+            // Addres of the host.
+            IPAddress[] addressList = host.AddressList;
+
+            // Instantiates the endpoint and socket.
+            this.hostEndPoint = new IPEndPoint(addressList[addressList.Length - 2], port);
+            this._socket = new Socket(this.hostEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            RaiseOnConnChange(new ConnStatusChangeArgs(string.Empty, ConnectStatus.Created));
+        }
+        #endregion
+
+        #region HeartBeats
         private int _heartBeatSpan = 120;
+        private System.Timers.Timer _heartBeatsTimer;
         /// <summary>
         /// 心跳时间(s)最低设置30s，默认3分钟
         /// </summary>
@@ -35,101 +130,40 @@ namespace SocketAsyncServer
         /// 是否开启心跳,连接前设置
         /// </summary>
         public bool HeartBeatsEnable { get; set; } = true;
-
-        private System.Timers.Timer _heartBeatsTimer;
-
-        /// <summary>
-        /// The socket used to send/receive messages.
-        /// </summary>
-        private Socket _socket;
-
-        private ConnectStatus _connStatus;
-
-        public ConnectStatus ConnStatus
+        public byte[] HeartBeatsData { get; set; } = Encoding.UTF8.GetBytes("HeartBeats");
+        private int _lastExchangeTime = Environment.TickCount;
+        private void InitHeartBeatsTimer()
         {
-            private set
+            if (HeartBeatsEnable == false)
+                return;
+            _heartBeatsTimer = new System.Timers.Timer(10 * 1000);
+            _heartBeatsTimer.Elapsed += (s, e) =>
             {
-                if (_connStatus != value)
+                if (Environment.TickCount - _lastExchangeTime > HeartBeatSpan * 1000)
                 {
-                    _connStatus = value;
-                    RaiseOnConnChange(new ConnStatusChangeArgs(value));
+                    Send(HeartBeatsData);
                 }
-            }
-            get
-            {
-                return _connStatus;
-            }
+            };
+            _heartBeatsTimer.Start();
         }
+        #endregion
 
-        /// <summary>
-        /// Listener endpoint.
-        /// </summary>
-        private IPEndPoint hostEndPoint;
-
-        /// <summary>
-        /// 客户端连接状态变更事件
-        /// </summary>
-        public event Action<ConnStatusChangeArgs> OnConnChangeEvent;
-        /// <summary>
-        /// 数据接收事件
-        /// </summary>
-        public event Action<DataReceivedArgs> OnReceivedEvent;
-
-        /// <summary>
-        /// Create an uninitialized client instance.  
-        /// To start the send/receive processing
-        /// call the Connect method followed by SendReceive method.
-        /// </summary>
-        /// <param name="hostName">Name of the host where the listener is running.</param>
-        /// <param name="port">Number of the TCP port from the listener.</param>
-        public SocketClient(String hostName, Int32 port)
-        {
-            // Get host related information.
-            IPHostEntry host = Dns.GetHostEntry(hostName);
-
-            // Addres of the host.
-            IPAddress[] addressList = host.AddressList;
-
-            // Instantiates the endpoint and socket.
-            this.hostEndPoint = new IPEndPoint(addressList[addressList.Length - 2], port);
-            this._socket = new Socket(this.hostEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-            RaiseOnConnChange(new ConnStatusChangeArgs(string.Empty, ConnectStatus.Created));
-        }
-        SocketAsyncEventArgs connectArgs = null;
+        #region Methods
+ 
         /// <summary>
         /// Connect to the host.
         /// </summary>
         /// <returns>True if connection has succeded, else false.</returns>
         public void Connect()
         {
-            connectArgs = new SocketAsyncEventArgs();
+            var connectArgs = new SocketAsyncEventArgs();
             connectArgs.UserToken = this._socket;
             connectArgs.RemoteEndPoint = this.hostEndPoint;
             //connectArgs.SetBuffer(new byte[1024], 0, 1024);
-            connectArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnConnect);
+            connectArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnComplete);
             _socket.ConnectAsync(connectArgs);
         }
-
-        /// <summary>
-        /// Disconnect from the host.
-        /// </summary>
-        public void Disconnect()
-        {
-            _socket.Disconnect(false);
-        }
-
-        private void RaiseOnConnChange(ConnStatusChangeArgs args)
-        {
-            OnConnChangeEvent?.Invoke(args);
-        }
-
-        private void RaiseOnReceive(DataReceivedArgs args)
-        {
-            _lastExchangeTime = Environment.TickCount;
-            OnReceivedEvent?.Invoke(args);
-        }
-
-        private void OnConnect(object sender, SocketAsyncEventArgs e)
+        private void OnComplete(object sender, SocketAsyncEventArgs e)
         {
             switch (e.LastOperation)
             {
@@ -180,50 +214,6 @@ namespace SocketAsyncServer
                 this.ProcessError(e);
             }
         }
-
-        private int _buffer = 1024;
-
-        SocketAsyncEventArgs so = null;
-        private void ProcessConnect(SocketAsyncEventArgs e)
-        {
-
-            // Set the flag for socket connected.
-            if (e.SocketError == SocketError.Success)
-            {
-                so = new SocketAsyncEventArgs();
-                so.Completed += new EventHandler<SocketAsyncEventArgs>(OnConnect);
-                so.UserToken = new AsyncUserToken(so);
-                so.SetBuffer(new Byte[_buffer], 0, _buffer);
-                //so.RemoteEndPoint = hostEndPoint;
-                if (_socket.ReceiveAsync(so) == false)
-                    ProcessReceive(so);
-
-                ConnStatus = ConnectStatus.Connected;
-
-                InitHeartBeatsTimer();
-            }
-            else
-                ConnStatus = ConnectStatus.Fault;
-        }
-        public byte[] HeartBeatsData { get; set; } = Encoding.UTF8.GetBytes("HeartBeats");
-        private int _lastExchangeTime = Environment.TickCount;
-        private void InitHeartBeatsTimer()
-        {
-            if (HeartBeatsEnable == false)
-                return;
-            _heartBeatsTimer = new System.Timers.Timer(10 * 1000);
-            _heartBeatsTimer.Elapsed += _heartBeatsTimer_Elapsed;
-            _heartBeatsTimer.Start();
-        }
-
-        private void _heartBeatsTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
-        {
-            if (Environment.TickCount - _lastExchangeTime > HeartBeatSpan * 1000)
-            {
-                Send(HeartBeatsData);
-            }
-        }
-
         /// <summary>
         /// Close socket in case of failure and throws a SockeException according to the SocketError.
         /// </summary>
@@ -251,8 +241,38 @@ namespace SocketAsyncServer
                 }
             }
             ConnStatus = ConnectStatus.Fault;
+        }        
+        private void ProcessConnect(SocketAsyncEventArgs e)
+        {
+
+            // Set the flag for socket connected.
+            if (e.SocketError == SocketError.Success)
+            {
+                var so = new SocketAsyncEventArgs();
+                so.Completed += new EventHandler<SocketAsyncEventArgs>(OnComplete);
+                so.UserToken = new AsyncUserToken(so);
+                so.SetBuffer(new Byte[_buffer], 0, _buffer);
+                //so.RemoteEndPoint = hostEndPoint;
+                if (_socket.ReceiveAsync(so) == false)
+                    ProcessReceive(so);
+
+                ConnStatus = ConnectStatus.Connected;
+
+                InitHeartBeatsTimer();
+            }
+            else
+                ConnStatus = ConnectStatus.Fault;
+        }
+        private void RaiseOnConnChange(ConnStatusChangeArgs args)
+        {
+            OnConnChangeEvent?.Invoke(args);
         }
 
+        private void RaiseOnReceive(DataReceivedArgs args)
+        {
+            _lastExchangeTime = Environment.TickCount;
+            OnReceivedEvent?.Invoke(args);
+        }
 
         #region 发送数据
 
@@ -301,7 +321,7 @@ namespace SocketAsyncServer
             _lastExchangeTime = Environment.TickCount;
 
             int sent = 0; // how many bytes is already sent
-            if (connectArgs != null)
+            if (_socket != null)
             {
                 var socket = _socket;
                 socket.SendTimeout = 0;
@@ -340,7 +360,14 @@ namespace SocketAsyncServer
 
         #endregion
 
-
+        /// <summary>
+        /// Disconnect from the host.
+        /// </summary>
+        public void Disconnect()
+        {
+            _socket.Disconnect(false);
+        }
+        #endregion
 
         #region IDisposable Members
 

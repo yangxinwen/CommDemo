@@ -51,8 +51,8 @@ namespace Service
         {
             service = new SocketListener(10000,1024);
             service.Start(1991);
-            service.OnReceivedEvent += Service_OnReceivedEvent;
-            service.OnClientConnChangeEvent += Service_OnClientConnChangeEvent;
+            service.OnReceived += Service_OnReceivedEvent;
+            service.OnClientConnChange += Service_OnClientConnChangeEvent;
 
         }
 
