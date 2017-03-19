@@ -46,8 +46,12 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\IOCPService\IOCPService.csproj">
-      <Project>{767C74D8-5583-4E2C-996E-D30006B5231C}</Project>
+      <Project>{767c74d8-5583-4e2c-996e-d30006b5231c}</Project>
       <Name>IOCPService</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\SocketAsyncServer\SocketAsyncServer.csproj">
+      <Project>{5ffe844e-4674-4a69-9f18-2122c5c27bc8}</Project>
+      <Name>SocketAsyncServer</Name>
     </ProjectReference>
     <ProjectReference Include="..\XXJR.Communication\XXJR.Communication.csproj">
       <Project>{79ef25c2-0369-4bde-b9b4-23d33601bcb2}</Project>

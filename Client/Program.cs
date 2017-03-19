@@ -13,29 +13,31 @@ namespace Client
         static void Main(string[] args)
         {
             var clients = new List<DuiTcpClient>();
-            //for (int i = 0; i < 10000; i++)
+            for (int i = 0; i < 10; i++)
             {
                 try
                 {
                     var client = new DuiTcpClient();
-                    client.EndPoint = new System.Net.IPEndPoint(IPAddress.Parse("192.168.31.70"), 1991);
+                    client.EndPoint = new System.Net.IPEndPoint(IPAddress.Parse("127.0.0.1"), 1991);
                     client.StatusChange += Client_StatusChange;
                     client.DataReceived += Client_DataReceived;
                     client.Connect();
                     //var bytes = UTF8Encoding.Default.GetBytes("test" + i);
                     //client.Send(bytes);
-                    //Thread.Sleep(100);
                     clients.Add(client);
                 }
                 catch (Exception)
                 {
                 }
             }
-            
+
+            Console.ReadLine();
+            //clients[0].Send(UTF8Encoding.Default.GetBytes("test" +"发送"));
 
             for (int i = 0; i < 1000; i++)
             {
-                clients[0].Send(UTF8Encoding.Default.GetBytes("test" + i + "发送"));
+                clients[i%10].Send(UTF8Encoding.Default.GetBytes("test" + i + "发送"));
+                Thread.Sleep(1000);
             }
 
 

@@ -8,26 +8,27 @@ namespace SocketAsyncClient
         {
             try
             {
-                String host = args[0];
-                Int32 port = Convert.ToInt32(args[1]);
-                Int16 iterations = 1;
+                String host = "127.0.0.1"; //args[0];
+                Int32 port = 9900;// Convert.ToInt32(args[1]);
+                Int16 iterations = 10000;
                 if (args.Length == 3)
                 {
                     iterations = Convert.ToInt16(args[2]);
                 }
+                SocketClient sa;
 
-                using (SocketClient sa = new SocketClient(host, port))
+                for (int i = 0; i < 10000; i++)
                 {
+                    sa = new SocketClient(host, port);
+
                     sa.Connect();
 
-                    for (Int32 i = 0; i < iterations; i++)
-                    {
-                        Console.WriteLine(sa.SendReceive("Message #" + i.ToString()));
-                    }
-                    sa.Disconnect();
 
-                    Console.WriteLine("Press any key to terminate the client process...");
-                    Console.Read();
+                    sa.SendReceive("Message #" + i.ToString());
+                 
+                    //sa.Disconnect();
+
+
                 }
             }
             catch (IndexOutOfRangeException)
@@ -45,6 +46,8 @@ namespace SocketAsyncClient
             {
                 Console.WriteLine("ERROR: " + ex.Message);
             }
+            Console.WriteLine("Press any key to terminate the client process...");
+            Console.Read();
         }
     }
 }

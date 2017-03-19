@@ -194,7 +194,8 @@ namespace IOCPService
 
                 //echo the data received back to the client
 
-                Console.WriteLine(UTF8Encoding.Default.GetString(e.Buffer, e.Offset, e.BytesTransferred));
+                //Console.WriteLine(UTF8Encoding.Default.GetString(e.Buffer, e.Offset, e.BytesTransferred));
+                Console.WriteLine("lenght:"+e.BytesTransferred);
                 e.SetBuffer(e.Offset, e.BytesTransferred);
 
 

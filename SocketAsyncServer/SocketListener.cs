@@ -4,6 +4,8 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Net;
 using System.Text;
+using System.Collections.Generic;
+using XXJR.Communication;
 
 namespace SocketAsyncServer
 {
@@ -13,17 +15,12 @@ namespace SocketAsyncServer
     /// After accepting a connection, all data read from the client is sent back. 
     /// The read and echo back to the client pattern is continued until the client disconnects.
     /// </summary>
-    internal sealed class SocketListener
+    public sealed class SocketListener
     {
         /// <summary>
         /// The socket used to listen for incoming connection requests.
         /// </summary>
         private Socket listenSocket;
-
-        /// <summary>
-        /// Mutex to synchronize server execution.
-        /// </summary>
-        private static Mutex mutex = new Mutex();
 
         /// <summary>
         /// Buffer size to use for each socket I/O operation.
@@ -33,12 +30,27 @@ namespace SocketAsyncServer
         /// <summary>
         /// The total number of clients connected to the server.
         /// </summary>
-        private Int32 numConnectedSockets;
+        public Int32 ConnectedCount
+        {
+            get
+            {
+                return _clientDic.Count;
+            }
+
+        }
 
         /// <summary>
         /// the maximum number of connections the sample is designed to handle simultaneously.
         /// </summary>
-        private Int32 numConnections;
+        private Int32 _maxConnCount;
+        public Int32 MaxConnCount
+        {
+            get
+            {
+                return _maxConnCount;
+            }
+            
+        }
 
         /// <summary>
         /// Pool of reusable SocketAsyncEventArgs objects for write, read and accept socket operations.
@@ -50,6 +62,16 @@ namespace SocketAsyncServer
         /// </summary>
         private Semaphore semaphoreAcceptedClients;
 
+        private Dictionary<string, AsyncUserToken> _clientDic = new Dictionary<string, AsyncUserToken>();
+        /// <summary>
+        /// 客户端连接状态变更事件
+        /// </summary>
+        public event Action<ConnStatusChangeArgs> OnClientConnChangeEvent;
+        /// <summary>
+        /// 数据接收事件
+        /// </summary>
+        public event Action<DataReceivedArgs> OnReceivedEvent;
+
         /// <summary>
         /// Create an uninitialized server instance.  
         /// To start the server listening for connection requests
@@ -57,17 +79,16 @@ namespace SocketAsyncServer
         /// </summary>
         /// <param name="numConnections">Maximum number of connections to be handled simultaneously.</param>
         /// <param name="bufferSize">Buffer size to use for each socket I/O operation.</param>
-        internal SocketListener(Int32 numConnections, Int32 bufferSize)
+        public SocketListener(Int32 numConnections, Int32 bufferSize)
         {
-            this.numConnectedSockets = 0;
-            this.numConnections = numConnections;
+            this._maxConnCount = numConnections;
             this.bufferSize = bufferSize;
 
             this.readWritePool = new SocketAsyncEventArgsPool(numConnections);
             this.semaphoreAcceptedClients = new Semaphore(numConnections, numConnections);
 
             // Preallocate pool of SocketAsyncEventArgs objects.
-            for (Int32 i = 0; i < this.numConnections; i++)
+            for (Int32 i = 0; i < this._maxConnCount; i++)
             {
                 SocketAsyncEventArgs readWriteEventArg = new SocketAsyncEventArgs();
                 readWriteEventArg.Completed += new EventHandler<SocketAsyncEventArgs>(OnIOCompleted);
@@ -84,21 +105,35 @@ namespace SocketAsyncServer
         /// <param name="e">SocketAsyncEventArg associated with the completed send/receive operation.</param>
         private void CloseClientSocket(SocketAsyncEventArgs e)
         {
-            Token token = e.UserToken as Token;
-            this.CloseClientSocket(token, e);
-        }
-
-        private void CloseClientSocket(Token token, SocketAsyncEventArgs e)
-        {
-            token.Dispose();
-
+            AsyncUserToken token = e.UserToken as AsyncUserToken;
+            RemoveClient(token.SessionId);
+            token.Socket.Close();
             // Decrement the counter keeping track of the total number of clients connected to the server.
             this.semaphoreAcceptedClients.Release();
-            Interlocked.Decrement(ref this.numConnectedSockets);
-            Console.WriteLine("A client has been disconnected from the server. There are {0} clients connected to the server", this.numConnectedSockets);
 
             // Free the SocketAsyncEventArg so they can be reused by another client.
             this.readWritePool.Push(e);
+        }
+
+        private void AddClient(string sessionId, AsyncUserToken token)
+        {
+            _clientDic.Add(sessionId, token);
+            RaiseOnClientConnChange(new ConnStatusChangeArgs(sessionId, ConnectStatus.Connected));
+        }
+        private void RemoveClient(string sessionId)
+        {
+            _clientDic.Remove(sessionId);
+            RaiseOnClientConnChange(new ConnStatusChangeArgs(sessionId, ConnectStatus.Closed));
+        }
+
+        private void RaiseOnClientConnChange(ConnStatusChangeArgs args)
+        {
+            OnClientConnChangeEvent?.Invoke(args);
+        }
+
+        private void RaiseOnReceive(DataReceivedArgs args)
+        {
+            OnReceivedEvent?.Invoke(args);
         }
 
         /// <summary>
@@ -149,11 +184,11 @@ namespace SocketAsyncServer
                     {
                         // Get the socket for the accepted client connection and put it into the 
                         // ReadEventArg object user token.
-                        readEventArgs.UserToken = new Token(s, this.bufferSize);
+                        var token = new AsyncUserToken(e);
+                        readEventArgs.UserToken = token;
 
-                        Interlocked.Increment(ref this.numConnectedSockets);
-                        Console.WriteLine("Client connection accepted. There are {0} clients connected to the server",
-                            this.numConnectedSockets);
+                        //添加到客户列表
+                        AddClient(token.SessionId, token);
 
                         if (!s.ReceiveAsync(readEventArgs))
                         {
@@ -167,8 +202,8 @@ namespace SocketAsyncServer
                 }
                 catch (SocketException ex)
                 {
-                    Token token = e.UserToken as Token;
-                    Console.WriteLine("Error when processing data received from {0}:\r\n{1}", token.Connection.RemoteEndPoint, ex.ToString());
+                    AsyncUserToken token = e.UserToken as AsyncUserToken;
+                    Console.WriteLine("Error when processing data received from {0}:\r\n{1}", token.Socket.RemoteEndPoint, ex.ToString());
                 }
                 catch (Exception ex)
                 {
@@ -182,10 +217,10 @@ namespace SocketAsyncServer
 
         private void ProcessError(SocketAsyncEventArgs e)
         {
-            Token token = e.UserToken as Token;
-            IPEndPoint localEp = token.Connection.LocalEndPoint as IPEndPoint;
+            AsyncUserToken token = e.UserToken as AsyncUserToken;
+            IPEndPoint localEp = token.Socket.LocalEndPoint as IPEndPoint;
 
-            this.CloseClientSocket(token, e);
+            this.CloseClientSocket(e);
 
             Console.WriteLine("Socket error {0} on endpoint {1} during {2}.", (Int32)e.SocketError, localEp, e.LastOperation);
         }
@@ -203,21 +238,12 @@ namespace SocketAsyncServer
             {
                 if (e.SocketError == SocketError.Success)
                 {
-                    Token token = e.UserToken as Token;
-                    token.SetData(e);
+                    AsyncUserToken token = e.UserToken as AsyncUserToken;
+                    var bytes = new byte[e.BytesTransferred];
+                    Array.Copy(e.Buffer, e.Offset, bytes, 0, e.BytesTransferred);
+                    RaiseOnReceive(new DataReceivedArgs(token.SessionId, bytes));
 
-                    Socket s = token.Connection;
-                    if (s.Available == 0)
-                    {
-                        // Set return buffer.
-                        token.ProcessData(e);
-                        if (!s.SendAsync(e))
-                        {
-                            // Set the buffer to send back to the client.
-                            this.ProcessSend(e);
-                        }
-                    }
-                    else if (!s.ReceiveAsync(e))
+                    if (!token.Socket.ReceiveAsync(e))
                     {
                         // Read the next block of data sent by client.
                         this.ProcessReceive(e);
@@ -234,6 +260,88 @@ namespace SocketAsyncServer
             }
         }
 
+
+        #region 发送数据
+
+        /// <summary>
+        /// 异步的发送数据
+        /// </summary>
+        /// <param name="e"></param>
+        /// <param name="data"></param>
+        public void SendAsyn(string sessionId, byte[] data)
+        {
+            if (_clientDic.ContainsKey(sessionId))
+            {
+                var e = _clientDic[sessionId].SocketArgs;
+                if (e.SocketError == SocketError.Success)
+                {
+                    Socket s = e.AcceptSocket;//和客户端关联的socket
+                    if (s.Connected)
+                    {
+                        Array.Copy(data, 0, e.Buffer, 0, data.Length);//设置发送数据
+
+                        //e.SetBuffer(data, 0, data.Length); //设置发送数据
+                        if (!s.SendAsync(e))//投递发送请求，这个函数有可能同步发送出去，这时返回false，并且不会引发SocketAsyncEventArgs.Completed事件
+                        {
+                            // 同步发送时处理发送完成事件
+                            ProcessSend(e);
+                        }
+                        else
+                        {
+                            CloseClientSocket(e);
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// 同步发送数据
+        /// </summary>
+        /// <param name="sessionId"></param>
+        /// <param name="data"></param>
+        /// <param name="timeout">超时时间(ms)</param>
+        /// <returns></returns>
+        public int Send(string sessionId, byte[] data, int timeout=10*1000)
+        {
+            int sent = 0; // how many bytes is already sent
+            if (_clientDic.ContainsKey(sessionId))
+            {
+                var socket = _clientDic[sessionId].Socket;
+                socket.SendTimeout = 0;
+                int startTickCount = Environment.TickCount;
+                //使用do while后期可改造大数据分多次发送
+                do
+                {
+                    if (Environment.TickCount > startTickCount + timeout)
+                    {
+                        return sent;
+                    }
+                    try
+                    {
+                        sent += socket.Send(data, sent, data.Length, SocketFlags.None);
+                        break;
+                    }
+                    catch (SocketException ex)
+                    {
+                        if (ex.SocketErrorCode == SocketError.WouldBlock ||
+                        ex.SocketErrorCode == SocketError.IOPending ||
+                        ex.SocketErrorCode == SocketError.NoBufferSpaceAvailable)
+                        {
+                            // socket buffer is probably full, wait and try again
+                            Thread.Sleep(30);
+                        }
+                        else
+                        {
+                            throw ex; // any serious error occurr
+                        }
+                    }
+                } while (true);
+            }
+            return sent;
+        }
+
+
         /// <summary>
         /// This method is invoked when an asynchronous send operation completes.  
         /// The method issues another receive on the socket to read any additional 
@@ -245,9 +353,9 @@ namespace SocketAsyncServer
             if (e.SocketError == SocketError.Success)
             {
                 // Done echoing data back to the client.
-                Token token = e.UserToken as Token;
+                AsyncUserToken token = e.UserToken as AsyncUserToken;
 
-                if (!token.Connection.ReceiveAsync(e))
+                if (!token.Socket.ReceiveAsync(e))
                 {
                     // Read the next block of data send from the client.
                     this.ProcessReceive(e);
@@ -258,12 +366,13 @@ namespace SocketAsyncServer
                 this.ProcessError(e);
             }
         }
+        #endregion
 
         /// <summary>
         /// Starts the server listening for incoming connection requests.
         /// </summary>
         /// <param name="port">Port where the server will listen for connection requests.</param>
-        internal void Start(Int32 port)
+        public void Start(Int32 port)
         {
             // Get host related information.
             IPAddress[] addressList = Dns.GetHostEntry(Environment.MachineName).AddressList;
@@ -291,13 +400,10 @@ namespace SocketAsyncServer
             }
 
             // Start the server.
-            this.listenSocket.Listen(this.numConnections);
+            this.listenSocket.Listen(this._maxConnCount);
 
             // Post accepts on the listening socket.
             this.StartAccept(null);
-
-            // Blocks the current thread to receive incoming messages.
-            mutex.WaitOne();
         }
 
         /// <summary>
@@ -328,10 +434,14 @@ namespace SocketAsyncServer
         /// <summary>
         /// Stop the server.
         /// </summary>
-        internal void Stop()
+        public void Stop()
         {
+            foreach (var item in _clientDic)
+            {
+                CloseClientSocket(item.Value.SocketArgs);
+            }
+
             this.listenSocket.Close();
-            mutex.ReleaseMutex();
         }
     }
 }

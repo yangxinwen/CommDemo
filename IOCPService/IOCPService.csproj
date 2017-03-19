@@ -41,6 +41,7 @@
   <ItemGroup>
     <Compile Include="BufferManager.cs" />
     <Compile Include="AsyncUserToken.cs" />
+    <Compile Include="ServerListener.cs" />
     <Compile Include="SocketAsyncEventArgsPool.cs" />
     <Compile Include="Server.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

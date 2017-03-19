@@ -3,8 +3,9 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using XXJR.Communication;
 
-namespace SocketAsyncClient
+namespace SocketAsyncServer
 {
     /// <summary>
     /// Implements the connection logic for the socket client.
@@ -19,12 +20,25 @@ namespace SocketAsyncClient
         /// <summary>
         /// The socket used to send/receive messages.
         /// </summary>
-        private Socket clientSocket;
+        private Socket _socket;
 
-        /// <summary>
-        /// Flag for connected socket.
-        /// </summary>
-        private Boolean connected = false;
+        private ConnectStatus _connStatus;
+
+        public ConnectStatus ConnStatus
+        {
+            private set
+            {
+                if (_connStatus != value)
+                {
+                    _connStatus = value;
+                    RaiseOnConnChange(new ConnStatusChangeArgs(value));
+                }
+            }
+            get
+            {
+                return _connStatus;
+            }
+        }
 
         /// <summary>
         /// Listener endpoint.
@@ -46,6 +60,15 @@ namespace SocketAsyncClient
         };
 
         /// <summary>
+        /// 客户端连接状态变更事件
+        /// </summary>
+        public event Action<ConnStatusChangeArgs> OnConnChangeEvent;
+        /// <summary>
+        /// 数据接收事件
+        /// </summary>
+        public event Action<DataReceivedArgs> OnReceivedEvent;
+
+        /// <summary>
         /// Create an uninitialized client instance.  
         /// To start the send/receive processing
         /// call the Connect method followed by SendReceive method.
@@ -61,8 +84,9 @@ namespace SocketAsyncClient
             IPAddress[] addressList = host.AddressList;
 
             // Instantiates the endpoint and socket.
-            this.hostEndPoint = new IPEndPoint(addressList[addressList.Length - 1], port);
-            this.clientSocket = new Socket(this.hostEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            this.hostEndPoint = new IPEndPoint(addressList[addressList.Length - 2], port);
+            this._socket = new Socket(this.hostEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            RaiseOnConnChange(new ConnStatusChangeArgs(string.Empty, ConnectStatus.Created));
         }
         SocketAsyncEventArgs connectArgs = null;
         /// <summary>
@@ -72,17 +96,18 @@ namespace SocketAsyncClient
         internal void Connect()
         {
             connectArgs = new SocketAsyncEventArgs();
-            connectArgs.UserToken = this.clientSocket;
+            connectArgs.UserToken = this._socket;
             connectArgs.RemoteEndPoint = this.hostEndPoint;
+            connectArgs.SetBuffer(new byte[1024], 0, 1024);
             connectArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnConnect);
 
-            clientSocket.ConnectAsync(connectArgs);
+            _socket.ConnectAsync(connectArgs);
             autoConnectEvent.WaitOne();
 
             SocketError errorCode = connectArgs.SocketError;
             if (errorCode != SocketError.Success)
             {
-                throw new SocketException((Int32)errorCode);
+                RaiseOnConnChange(new ConnStatusChangeArgs(string.Empty, ConnectStatus.Connected));
             }
         }
 
@@ -91,16 +116,75 @@ namespace SocketAsyncClient
         /// </summary>
         internal void Disconnect()
         {
-            clientSocket.Disconnect(false);
+            _socket.Disconnect(false);
+        }
+
+        private void RaiseOnConnChange(ConnStatusChangeArgs args)
+        {
+            OnConnChangeEvent?.Invoke(args);
+        }
+
+        private void RaiseOnReceive(DataReceivedArgs args)
+        {
+            OnReceivedEvent?.Invoke(args);
         }
 
         private void OnConnect(object sender, SocketAsyncEventArgs e)
         {
+            switch (e.LastOperation)
+            {
+                case SocketAsyncOperation.Connect:
+                    ProcessConnect(e);
+                    break;
+                case SocketAsyncOperation.Receive:
+                    ProcessReceive(e);
+                    break;
+                case SocketAsyncOperation.Send:
+                    ProcessSend(e);
+                    break;
+                default:
+                    break;
+            }
+        }
+        private void ProcessSend(SocketAsyncEventArgs e)
+        {
+            autoSendReceiveEvents[SendOperation].Set();
+        }
+        private void ProcessReceive(SocketAsyncEventArgs e)
+        {
+            if (e.SocketError == SocketError.Success)
+            {
+                var data = new byte[e.BytesTransferred];
+                Array.Copy(e.Buffer, e.Offset, data, 0, e.BytesTransferred);
+                RaiseOnReceive(new DataReceivedArgs(data));
+
+                if (_socket.ReceiveAsync(e) == false)
+                {
+                    ProcessReceive(e);
+                }
+            }
+            else
+            {
+                this.ProcessError(e);
+            }
+        }
+
+        SocketAsyncEventArgs so = null;
+        private void ProcessConnect(SocketAsyncEventArgs e)
+        {
             // Signals the end of connection.
             autoConnectEvent.Set();
-
+            so = new SocketAsyncEventArgs();
+            so.Completed +=new EventHandler<SocketAsyncEventArgs>(OnConnect);
+            so.UserToken = new AsyncUserToken(e);
+            so.SetBuffer(new Byte[1024], 0, 1024);
+            so.RemoteEndPoint = hostEndPoint;
+            _socket.ReceiveAsync(so);
             // Set the flag for socket connected.
-            this.connected = (e.SocketError == SocketError.Success);
+            if (e.SocketError == SocketError.Success)
+                ConnStatus = ConnectStatus.Connected;
+            else
+                ConnStatus = ConnectStatus.Fault;
         }
 
         private void OnReceive(object sender, SocketAsyncEventArgs e)
@@ -159,9 +243,7 @@ namespace SocketAsyncClient
                     }
                 }
             }
-
-            // Throw the SocketException
-            throw new SocketException((Int32)e.SocketError);
+            ConnStatus = ConnectStatus.Fault;
         }
 
         /// <summary>
@@ -171,7 +253,7 @@ namespace SocketAsyncClient
         /// <returns>Message sent by the host.</returns>
         internal String SendReceive(String message)
         {
-            if (this.connected)
+            if (this.ConnStatus == ConnectStatus.Connected)
             {
                 // Create a buffer to send.
                 Byte[] sendBuffer = Encoding.ASCII.GetBytes(message);
@@ -179,12 +261,12 @@ namespace SocketAsyncClient
                 // Prepare arguments for send/receive operation.
                 SocketAsyncEventArgs completeArgs = new SocketAsyncEventArgs();
                 completeArgs.SetBuffer(sendBuffer, 0, sendBuffer.Length);
-                completeArgs.UserToken = this.clientSocket;
+                completeArgs.UserToken = this._socket;
                 completeArgs.RemoteEndPoint = this.hostEndPoint;
                 completeArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnSend);
 
                 // Start sending asyncronally.
-                clientSocket.SendAsync(completeArgs);
+                _socket.SendAsync(completeArgs);
 
                 // Wait for the send/receive completed.
                 AutoResetEvent.WaitAll(autoSendReceiveEvents);
@@ -209,17 +291,17 @@ namespace SocketAsyncClient
         /// <param name="data"></param>
         public void SendAsyn(byte[] data)
         {
-            if (connectArgs != null)
+            if (so != null)
             {
-                var e = connectArgs;
+                var e = so;
                 if (e.SocketError == SocketError.Success)
                 {
-                    Socket s = e.AcceptSocket;//和客户端关联的socket
+                    Socket s =_socket;//和客户端关联的socket
                     if (s.Connected)
                     {
                         Array.Copy(data, 0, e.Buffer, 0, data.Length);//设置发送数据
 
-                        //e.SetBuffer(data, 0, data.Length); //设置发送数据
+                        e.SetBuffer(data, 0, data.Length); //设置发送数据
                         if (!s.SendAsync(e))//投递发送请求，这个函数有可能同步发送出去，这时返回false，并且不会引发SocketAsyncEventArgs.Completed事件
                         {
                             // 同步发送时处理发送完成事件
@@ -241,24 +323,25 @@ namespace SocketAsyncClient
         /// <param name="data"></param>
         /// <param name="timeout">超时时间(ms)</param>
         /// <returns></returns>
-        public int Send(byte[] data, int timeout)
+        public int Send(byte[] data, int timeout = 0)
         {
             int sent = 0; // how many bytes is already sent
             if (connectArgs != null)
             {
-                var socket = clientSocket;
+                var socket = _socket;
                 socket.SendTimeout = 0;
                 int startTickCount = Environment.TickCount;
                 //使用do while后期可改造大数据分多次发送
                 do
                 {
-                    if (Environment.TickCount > startTickCount + timeout)
+                    if (timeout > 0 && (Environment.TickCount > startTickCount + timeout))
                     {
                         return sent;
                     }
                     try
                     {
-                        sent += socket.Send(data, sent, data.Length, SocketFlags.None);
+                        //sent += socket.Send(data, sent, data.Length, SocketFlags.None);
+                        sent += socket.Send(data);
                         break;
                     }
                     catch (SocketException ex)
@@ -272,7 +355,7 @@ namespace SocketAsyncClient
                         }
                         else
                         {
-                            throw ex; // any serious error occurr
+                            break; // any serious error occurr
                         }
                     }
                 } while (true);
@@ -294,10 +377,11 @@ namespace SocketAsyncClient
             autoConnectEvent.Close();
             autoSendReceiveEvents[SendOperation].Close();
             autoSendReceiveEvents[ReceiveOperation].Close();
-            if (this.clientSocket.Connected)
+            if (this._socket.Connected)
             {
-                this.clientSocket.Close();
+                this._socket.Close();
             }
+            this.ConnStatus = ConnectStatus.Closed;
         }
 
         #endregion

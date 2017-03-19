@@ -13,5 +13,38 @@ namespace XXJR.Communication
        Created,
        Connected,
        Fault,
+       Closed,
+    }
+
+    public class ConnStatusChangeArgs
+    {
+        public string SessionId { get; set; }
+        public ConnectStatus ConnStatus { get; set; }
+
+        public ConnStatusChangeArgs(ConnectStatus status)
+        {
+            this.SessionId = string.Empty;
+            this.ConnStatus = status;
+        }
+        public ConnStatusChangeArgs(string sessionId,ConnectStatus status)
+        {
+            this.SessionId = sessionId;
+            this.ConnStatus = status;
+        }
+    }
+    public class DataReceivedArgs
+    {
+        public string SessionId { get; set; }
+        public byte[] Data { get; set; }
+        public DataReceivedArgs(byte[] data)
+        {
+            this.SessionId = string.Empty;
+            this.Data = data;
+        }
+        public DataReceivedArgs(string sessionId,byte[] data)
+        {
+            this.SessionId = sessionId;
+            this.Data = data;
+        }
     }
 }
