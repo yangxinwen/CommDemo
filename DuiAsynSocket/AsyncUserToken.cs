@@ -6,7 +6,7 @@ using System.Text;
 
 namespace DuiAsynSocket
 {
-    public class AsyncUserToken
+    public class AsyncUserToken : IDisposable
     {
         public SocketAsyncEventArgs AsynSocketArgs { get; private set; }
         public Socket Socket { get; private set; }
@@ -26,6 +26,13 @@ namespace DuiAsynSocket
         {
             AsynSocketArgs = args;
             Socket = args.AcceptSocket;
+        }
+        public void Dispose()
+        {
+            if (Socket != null)
+                Socket.Close();
+            //AsynSocketArgs.Dispose();
+            AsynSocketArgs = null;
         }
     }
 }

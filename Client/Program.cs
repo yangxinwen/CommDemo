@@ -1,33 +1,44 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading;
 using DuiAsynSocket;
 
-namespace Client
+namespace Service
 {
     class Program
     {
         static void Main(string[] args)
         {
-
-
             TestClient();
             Console.ReadLine();
         }
+        private static uint sequenceId = 1;
+        private static byte[] GetSendData()
+        {
+            var model = ExchangeData.CreateBuilder();
+            model.IsRequest = true;
+            model.MessageType = true;
+            model.SequenceId = sequenceId++;
+            model.JsonBody = "test";
 
-
+            var stream = new MemoryStream();
+            model.Build().WriteTo(stream);
+            return stream.ToArray();
+        }
 
         private static void TestClient()
         {
+
             var clients = new List<SocketClient>();
-            for (int i = 0; i < 5; i++)
+            for (int i = 0; i < 5000; i++)
             {
                 try
                 {
-                    var client = new SocketClient("127.0.0.1", 1991);
+                    var client = new SocketClient("192.168.31.207", 2991);
                     client.HeartBeatsEnable = true;
                     //client.HeartBeatSpan = 30;
                     client.OnConnChangeEvent += Client_OnConnChangeEvent;
@@ -45,23 +56,36 @@ namespace Client
 
             Console.WriteLine("----------------");
 
-            for (int i = 0; i < 10000; i++)
+            Thread.Sleep(5 * 1000);
+
+            for (int i = 0; i < 100000; i++)
             {
-                Console.WriteLine("test" + (i % 5) + "发送");
-                clients[i % 5].Send(UTF8Encoding.UTF8.GetBytes("test" + (i % 5) + "发送"));
-                Thread.Sleep(1000*10);
+                var client = clients[i % 5000];
+                if (client.ConnStatus != ConnectStatus.Connected)
+                    continue;
+                var bytes = GetSendData();
+                client.Send(bytes);
+                //Thread.Sleep(1000*10);
             }
             Console.ReadLine();
         }
 
         private static void Client_OnReceivedEvent(DataReceivedArgs obj)
         {
-            Console.WriteLine("接收:"+Encoding.UTF8.GetString(obj.Data));
+            //Console.WriteLine("接收:"+Encoding.UTF8.GetString(obj.Data));
         }
+
+        private static int successCount =0;
+
+        private static int errorCount = 0;
 
         private static void Client_OnConnChangeEvent(ConnStatusChangeArgs obj)
         {
-            Console.WriteLine(obj.ConnStatus.ToString());
-        }   
+            if (obj.ConnStatus == ConnectStatus.Connected)
+                successCount++;
+            else
+                errorCount++;
+            Console.WriteLine($"成功:{successCount}   失败:{errorCount}");
+        }
     }
 }

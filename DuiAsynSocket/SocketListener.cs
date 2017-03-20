@@ -5,6 +5,7 @@ using System.Threading;
 using System.Net;
 using System.Text;
 using System.Collections.Generic;
+using System.Collections;
 
 namespace DuiAsynSocket
 {
@@ -37,7 +38,7 @@ namespace DuiAsynSocket
         /// </summary>
         private Semaphore semaphoreAcceptedClients;
 
-        private Dictionary<string, AsyncUserToken> _clientDic = new Dictionary<string, AsyncUserToken>();
+        private Hashtable _clients = null;
         #endregion
 
         #region Properties
@@ -48,7 +49,7 @@ namespace DuiAsynSocket
         {
             get
             {
-                return _clientDic.Count;
+                return _clients.Count;
             }
 
         }
@@ -112,6 +113,7 @@ namespace DuiAsynSocket
         /// <param name="bufferSize">Buffer size to use for each socket I/O operation.</param>
         public SocketListener(Int32 numConnections, Int32 bufferSize)
         {
+            _clients = new Hashtable(numConnections);
             this._maxConnCount = numConnections;
             this.bufferSize = bufferSize;
 
@@ -121,18 +123,25 @@ namespace DuiAsynSocket
             // Preallocate pool of SocketAsyncEventArgs objects.
             for (Int32 i = 0; i < this._maxConnCount; i++)
             {
-                SocketAsyncEventArgs readWriteEventArg = new SocketAsyncEventArgs();
-                readWriteEventArg.Completed += new EventHandler<SocketAsyncEventArgs>(OnIOCompleted);
-                readWriteEventArg.SetBuffer(new Byte[this.bufferSize], 0, this.bufferSize);
-
                 // Add SocketAsyncEventArg to the pool.
-                this.readWritePool.Push(readWriteEventArg);
+                this.readWritePool.Push(CreateSocketAsync());
             }
         }
 
         #endregion
 
         #region Methods
+        /// <summary>
+        /// 创建一个新的异步操作
+        /// </summary>
+        /// <returns></returns>
+        private SocketAsyncEventArgs CreateSocketAsync()
+        {
+            SocketAsyncEventArgs readWriteEventArg = new SocketAsyncEventArgs();
+            readWriteEventArg.Completed += new EventHandler<SocketAsyncEventArgs>(OnIOCompleted);
+            readWriteEventArg.SetBuffer(new Byte[this.bufferSize], 0, this.bufferSize);
+            return readWriteEventArg;
+        }
 
         /// <summary>
         /// Starts the server listening for incoming connection requests.
@@ -250,7 +259,8 @@ namespace DuiAsynSocket
                         // ReadEventArg object user token.
                         var token = new AsyncUserToken(e);
                         readEventArgs.UserToken = token;
-
+                        if (readEventArgs.Buffer == null)
+                            readEventArgs.SetBuffer(new Byte[this.bufferSize], 0, this.bufferSize);
                         //添加到客户列表
                         AddClient(token.SessionId, token);
 
@@ -294,6 +304,7 @@ namespace DuiAsynSocket
         private void ProcessReceive(SocketAsyncEventArgs e)
         {
             AsyncUserToken token = e.UserToken as AsyncUserToken;
+
             // Check if the remote host closed the connection.
             if (e.BytesTransferred > 0)
             {
@@ -322,23 +333,37 @@ namespace DuiAsynSocket
 
         private void AddClient(string sessionId, AsyncUserToken token)
         {
-            _clientDic.Add(sessionId, token);
+            _clients.Add(sessionId, token);
             RaiseOnClientConnChange(new ConnStatusChangeArgs(sessionId, ConnectStatus.Connected));
         }
         private void RemoveClient(string sessionId)
         {
-            _clientDic.Remove(sessionId);
+            _clients.Remove(sessionId);
             RaiseOnClientConnChange(new ConnStatusChangeArgs(sessionId, ConnectStatus.Closed));
         }
 
         private void RaiseOnClientConnChange(ConnStatusChangeArgs args)
         {
-            OnClientConnChange?.Invoke(args);
+            try
+            {
+                OnClientConnChange?.Invoke(args);
+            }
+            catch (Exception)
+            {
+
+            }
         }
 
         private void RaiseOnReceive(DataReceivedArgs args)
         {
-            OnReceived?.Invoke(args);
+            try
+            {
+                OnReceived?.Invoke(args);
+            }
+            catch (Exception)
+            {
+
+            }
         }
 
         #region 发送数据
@@ -385,9 +410,9 @@ namespace DuiAsynSocket
         public int Send(string sessionId, byte[] data, int timeout = 10 * 1000)
         {
             int sent = 0; // how many bytes is already sent
-            if (_clientDic.ContainsKey(sessionId))
+            if (_clients.ContainsKey(sessionId))
             {
-                var socket = _clientDic[sessionId].Socket;
+                var socket = (_clients[sessionId] as AsyncUserToken).Socket;
                 socket.SendTimeout = 0;
                 int startTickCount = Environment.TickCount;
                 //使用do while后期可改造大数据分多次发送
@@ -413,7 +438,8 @@ namespace DuiAsynSocket
                         }
                         else
                         {
-                            throw ex; // any serious error occurr
+                            return 0;
+                            //throw ex; // any serious error occurr
                         }
                     }
                 } while (true);
@@ -448,9 +474,9 @@ namespace DuiAsynSocket
         }
         #endregion       
 
-        public List<string> GetClients()
+        public ICollection<string> GetClients()
         {
-            return new List<string>(_clientDic.Keys);
+            return (ICollection<string>)_clients.Keys;
         }
 
         /// <summary>
@@ -460,8 +486,8 @@ namespace DuiAsynSocket
         /// <returns></returns>
         public Socket GetClient(string sessionId)
         {
-            if (_clientDic.ContainsKey(sessionId))
-                return _clientDic[sessionId].Socket;
+            if (_clients.ContainsKey(sessionId))
+                return (_clients[sessionId] as AsyncUserToken).Socket;
             else
                 return null;
         }
@@ -472,8 +498,8 @@ namespace DuiAsynSocket
         /// <returns></returns>
         public void CloseClient(string sessionId)
         {
-            if (_clientDic.ContainsKey(sessionId))
-                CloseClientSocket(_clientDic[sessionId]);
+            if (_clients.ContainsKey(sessionId))
+                CloseClientSocket(_clients[sessionId] as AsyncUserToken);
         }
 
         /// <summary>
@@ -486,25 +512,25 @@ namespace DuiAsynSocket
                 return;
 
             RemoveClient(token.SessionId);
-            token.Socket?.Close();
-
+            token.Dispose();
             if (ServiceStatus == ConnectStatus.Listening)
             {
                 // Decrement the counter keeping track of the total number of clients connected to the server.
                 this.semaphoreAcceptedClients.Release();
             }
             // Free the SocketAsyncEventArg so they can be reused by another client.
-            this.readWritePool.Push(token.AsynSocketArgs);
+            this.readWritePool.Push(CreateSocketAsync());
         }
 
         /// <summary>
         /// Stop the server.
         /// </summary>
         public void Stop()
-        {       
+        {
             this.listenSocket.Close();
             ServiceStatus = ConnectStatus.Closed;
-            var values = new List<AsyncUserToken>(_clientDic.Values);
+            var values = new AsyncUserToken[_clients.Count];
+            _clients.Values.CopyTo(values, 0);
             foreach (var item in values)
             {
                 CloseClientSocket(item);

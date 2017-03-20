@@ -91,14 +91,15 @@ namespace DuiAsynSocket
         /// <param name="port">Number of the TCP port from the listener.</param>
         public SocketClient(String hostName, Int32 port)
         {
-            // Get host related information.
-            IPHostEntry host = Dns.GetHostEntry(hostName);
+            //// Get host related information.
+            //IPHostEntry host = Dns.GetHostEntry(hostName);
 
-            // Addres of the host.
-            IPAddress[] addressList = host.AddressList;
+            //// Addres of the host.
+            //IPAddress[] addressList = host.AddressList;
 
-            // Instantiates the endpoint and socket.
-            this.hostEndPoint = new IPEndPoint(addressList[addressList.Length - 2], port);
+            //// Instantiates the endpoint and socket.
+            //this.hostEndPoint = new IPEndPoint(addressList[addressList.Length - 1], port);
+            this.hostEndPoint = new IPEndPoint(IPAddress.Parse(hostName), port);
             this._socket = new Socket(this.hostEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             RaiseOnConnChange(new ConnStatusChangeArgs(string.Empty, ConnectStatus.Created));
         }
@@ -263,13 +264,27 @@ namespace DuiAsynSocket
         }
         private void RaiseOnConnChange(ConnStatusChangeArgs args)
         {
-            OnConnChangeEvent?.Invoke(args);
+            try
+            {
+                OnConnChangeEvent?.Invoke(args);
+            }
+            catch (Exception)
+            {
+
+            }
         }
 
         private void RaiseOnReceive(DataReceivedArgs args)
         {
-            _lastExchangeTime = Environment.TickCount;
-            OnReceivedEvent?.Invoke(args);
+            try
+            {
+                _lastExchangeTime = Environment.TickCount;
+                OnReceivedEvent?.Invoke(args);
+            }
+            catch (Exception)
+            {
+
+            }
         }
 
         #region ·¢ËÍÊý¾Ý
@@ -319,7 +334,7 @@ namespace DuiAsynSocket
             _lastExchangeTime = Environment.TickCount;
 
             int sent = 0; // how many bytes is already sent
-            if (_socket != null&& _socket.Connected)
+            if (_socket != null && _socket.Connected)
             {
                 var socket = _socket;
                 socket.SendTimeout = 0;

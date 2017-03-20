@@ -9,6 +9,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Service", "Service\Service.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DuiAsynSocket", "DuiAsynSocket\DuiAsynSocket.csproj", "{5FFE844E-4674-4A69-9F18-2122C5C27BC8}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "dll", "dll", "{8ACB951E-52F1-49AE-8364-4B73B04E1424}"
+	ProjectSection(SolutionItems) = preProject
+		Dll\Google.ProtocolBuffers.dll = Dll\Google.ProtocolBuffers.dll
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

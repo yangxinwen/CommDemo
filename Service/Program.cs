@@ -22,7 +22,7 @@ namespace Service
         private static void TestService()
         {
             service = new SocketListener(5000, 1024);
-            service.Start(1991);
+            service.Start(2991);
             service.OnReceived += Service_OnReceivedEvent;
             service.OnClientConnChange += Service_OnClientConnChangeEvent;
 
@@ -30,27 +30,36 @@ namespace Service
 
 
             //while (true)
-            {
-                var i = 1;
-                Thread.Sleep(10 * 1000);
+            //{
+            //    var i = 1;
+            //    Thread.Sleep(10 * 1000);
 
-                foreach (var item in service.GetClients())
-                {
-                    service.Send(item, UTF8Encoding.UTF8.GetBytes($"{i++}服务端发送"));
-                }
-            }
+            //    foreach (var item in service.GetClients())
+            //    {
+            //        service.Send(item, UTF8Encoding.UTF8.GetBytes($"{i++}服务端发送"));
+            //    }
+            //}
 
-            service.Stop();
+            //service.Stop();
         }
 
         private static void Service_OnClientConnChangeEvent(ConnStatusChangeArgs obj)
         {
-            Console.WriteLine("sessionId:" + obj.SessionId + "  status:" + obj.ConnStatus.ToString());
+            if (obj.ConnStatus == ConnectStatus.Connected)
+                successCount++;
+            else if (obj.ConnStatus == ConnectStatus.Closed)
+                errorCount++;
+            Console.WriteLine($"接入:{successCount}   关闭:{errorCount}");
         }
+
+        private static int successCount = 0;
+
+        private static int errorCount = 0;
 
         private static void Service_OnReceivedEvent(DataReceivedArgs obj)
         {
-            Console.WriteLine("data:" + Encoding.UTF8.GetString(obj.Data));
+            var model = ExchangeData.ParseFrom(obj.Data);
+            Console.WriteLine($"data: {model.SequenceId} {model.MessageType} {model.IsRequest} {model.JsonBody}");
             service.Send(obj.SessionId, obj.Data);
         }
 
