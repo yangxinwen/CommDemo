@@ -3,9 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
-using XXJR.Communication;
-
-namespace SocketAsyncServer
+namespace DuiAsynSocket
 {
     /// <summary>
     /// Implements the connection logic for the socket client.
@@ -149,7 +147,7 @@ namespace SocketAsyncServer
         #endregion
 
         #region Methods
- 
+
         /// <summary>
         /// Connect to the host.
         /// </summary>
@@ -220,8 +218,8 @@ namespace SocketAsyncServer
         /// <param name="e">SocketAsyncEventArg associated with the failed operation.</param>
         private void ProcessError(SocketAsyncEventArgs e)
         {
-            Socket s = e.UserToken as Socket;
-            if (s.Connected)
+            Socket s = e.AcceptSocket as Socket;
+            if (s != null && s.Connected)
             {
                 // close the socket associated with the client
                 try
@@ -241,7 +239,7 @@ namespace SocketAsyncServer
                 }
             }
             ConnStatus = ConnectStatus.Fault;
-        }        
+        }
         private void ProcessConnect(SocketAsyncEventArgs e)
         {
 
@@ -321,7 +319,7 @@ namespace SocketAsyncServer
             _lastExchangeTime = Environment.TickCount;
 
             int sent = 0; // how many bytes is already sent
-            if (_socket != null)
+            if (_socket != null&& _socket.Connected)
             {
                 var socket = _socket;
                 socket.SendTimeout = 0;
@@ -350,6 +348,7 @@ namespace SocketAsyncServer
                         }
                         else
                         {
+                            ConnStatus = ConnectStatus.Fault;
                             break; // any serious error occurr
                         }
                     }

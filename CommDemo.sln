@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.25420.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Client", "Client\Client.csproj", "{120662F5-7281-4D31-ABF1-98C3C73F954D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DuiAsynSocket", "SocketAsyncServer\DuiAsynSocket.csproj", "{5FFE844E-4674-4A69-9F18-2122C5C27BC8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Service", "Service\Service.csproj", "{1ABD42AE-EE1F-43A2-8891-54C77CD37924}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{120662F5-7281-4D31-ABF1-98C3C73F954D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{120662F5-7281-4D31-ABF1-98C3C73F954D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{120662F5-7281-4D31-ABF1-98C3C73F954D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{120662F5-7281-4D31-ABF1-98C3C73F954D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5FFE844E-4674-4A69-9F18-2122C5C27BC8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5FFE844E-4674-4A69-9F18-2122C5C27BC8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5FFE844E-4674-4A69-9F18-2122C5C27BC8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5FFE844E-4674-4A69-9F18-2122C5C27BC8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1ABD42AE-EE1F-43A2-8891-54C77CD37924}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1ABD42AE-EE1F-43A2-8891-54C77CD37924}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1ABD42AE-EE1F-43A2-8891-54C77CD37924}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1ABD42AE-EE1F-43A2-8891-54C77CD37924}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

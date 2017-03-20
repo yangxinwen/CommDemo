@@ -5,9 +5,8 @@ using System.Threading;
 using System.Net;
 using System.Text;
 using System.Collections.Generic;
-using XXJR.Communication;
 
-namespace SocketAsyncServer
+namespace DuiAsynSocket
 {
     /// <summary>
     /// Based on example from http://msdn2.microsoft.com/en-us/library/system.net.sockets.socketasynceventargs.aspx
@@ -76,6 +75,30 @@ namespace SocketAsyncServer
         /// </summary>
         public event Action<DataReceivedArgs> OnReceived;
 
+        private ConnectStatus _serviceStatus;
+        /// <summary>
+        /// 服务端状态
+        /// </summary>
+        public ConnectStatus ServiceStatus
+        {
+            get
+            {
+                return _serviceStatus;
+            }
+            set
+            {
+                if (value != _serviceStatus)
+                {
+                    _serviceStatus = value;
+                    OnServiceStatusChange?.Invoke(new ConnStatusChangeArgs(value));
+                }
+            }
+        }
+        /// <summary>
+        /// 服务端连接状态变更事件
+        /// </summary>
+        public event Action<ConnStatusChangeArgs> OnServiceStatusChange;
+
         #endregion
 
         #region Constructors
@@ -121,7 +144,8 @@ namespace SocketAsyncServer
             IPAddress[] addressList = Dns.GetHostEntry(Environment.MachineName).AddressList;
 
             // Get endpoint for the listener.
-            IPEndPoint localEndPoint = new IPEndPoint(addressList[addressList.Length - 1], port);
+            //IPEndPoint localEndPoint = new IPEndPoint(addressList[addressList.Length - 2], port);
+            IPEndPoint localEndPoint = new IPEndPoint(IPAddress.Any, port);
 
             // Create the socket which listens for incoming connections.
             this.listenSocket = new Socket(localEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
@@ -145,6 +169,8 @@ namespace SocketAsyncServer
             // Start the server.
             this.listenSocket.Listen(this._maxConnCount);
 
+            ServiceStatus = ConnectStatus.Listening;
+
             // Post accepts on the listening socket.
             this.StartAccept(null);
         }
@@ -159,7 +185,7 @@ namespace SocketAsyncServer
         {
             this.ProcessAccept(e);
         }
-        
+
         /// <summary>
         /// Begins an operation to accept a connection request from the client.
         /// </summary>
@@ -256,11 +282,7 @@ namespace SocketAsyncServer
         private void ProcessError(SocketAsyncEventArgs e)
         {
             AsyncUserToken token = e.UserToken as AsyncUserToken;
-            IPEndPoint localEp = token.Socket.LocalEndPoint as IPEndPoint;
-
-            this.CloseClientSocket(e);
-
-            Console.WriteLine("Socket error {0} on endpoint {1} during {2}.", (Int32)e.SocketError, localEp, e.LastOperation);
+            this.CloseClientSocket(token);
         }
 
         /// <summary>
@@ -271,12 +293,12 @@ namespace SocketAsyncServer
         /// <param name="e">SocketAsyncEventArg associated with the completed receive operation.</param>
         private void ProcessReceive(SocketAsyncEventArgs e)
         {
+            AsyncUserToken token = e.UserToken as AsyncUserToken;
             // Check if the remote host closed the connection.
             if (e.BytesTransferred > 0)
             {
                 if (e.SocketError == SocketError.Success)
                 {
-                    AsyncUserToken token = e.UserToken as AsyncUserToken;
                     var bytes = new byte[e.BytesTransferred];
                     Array.Copy(e.Buffer, e.Offset, bytes, 0, e.BytesTransferred);
                     RaiseOnReceive(new DataReceivedArgs(token.SessionId, bytes));
@@ -294,7 +316,7 @@ namespace SocketAsyncServer
             }
             else
             {
-                this.CloseClientSocket(e);
+                this.CloseClientSocket(token);
             }
         }
 
@@ -426,6 +448,11 @@ namespace SocketAsyncServer
         }
         #endregion       
 
+        public List<string> GetClients()
+        {
+            return new List<string>(_clientDic.Keys);
+        }
+
         /// <summary>
         /// 根据sessionId获取指定客户端的socket
         /// </summary>
@@ -446,36 +473,42 @@ namespace SocketAsyncServer
         public void CloseClient(string sessionId)
         {
             if (_clientDic.ContainsKey(sessionId))
-                CloseClientSocket(_clientDic[sessionId].AsynSocketArgs);
+                CloseClientSocket(_clientDic[sessionId]);
         }
 
         /// <summary>
         /// Close the socket associated with the client.
         /// </summary>
         /// <param name="e">SocketAsyncEventArg associated with the completed send/receive operation.</param>
-        private void CloseClientSocket(SocketAsyncEventArgs e)
+        private void CloseClientSocket(AsyncUserToken token)
         {
-            AsyncUserToken token = e.UserToken as AsyncUserToken;
-            RemoveClient(token.SessionId);
-            token.Socket.Close();
-            // Decrement the counter keeping track of the total number of clients connected to the server.
-            this.semaphoreAcceptedClients.Release();
+            if (token == null)
+                return;
 
+            RemoveClient(token.SessionId);
+            token.Socket?.Close();
+
+            if (ServiceStatus == ConnectStatus.Listening)
+            {
+                // Decrement the counter keeping track of the total number of clients connected to the server.
+                this.semaphoreAcceptedClients.Release();
+            }
             // Free the SocketAsyncEventArg so they can be reused by another client.
-            this.readWritePool.Push(e);
+            this.readWritePool.Push(token.AsynSocketArgs);
         }
 
         /// <summary>
         /// Stop the server.
         /// </summary>
         public void Stop()
-        {
-            foreach (var item in _clientDic)
-            {
-                CloseClientSocket(item.Value.AsynSocketArgs);
-            }
-
+        {       
             this.listenSocket.Close();
+            ServiceStatus = ConnectStatus.Closed;
+            var values = new List<AsyncUserToken>(_clientDic.Values);
+            foreach (var item in values)
+            {
+                CloseClientSocket(item);
+            }
         }
 
         #endregion

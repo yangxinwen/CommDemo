@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("SocketAsyncServer")]
+[assembly: AssemblyTitle("DuiAsynSocket")]
 [assembly: AssemblyDescription("Example of socket server using SocketAsyncEventArgs")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("SocketAsyncServer")]
+[assembly: AssemblyProduct("DuiAsynSocket")]
 [assembly: AssemblyCopyright("")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]

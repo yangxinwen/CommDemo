@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Net.Sockets;
 
-namespace SocketAsyncServer
+namespace DuiAsynSocket
 {
     /// <summary>
     /// Based on example from http://msdn2.microsoft.com/en-us/library/system.net.sockets.socketasynceventargs.socketasynceventargs.aspx
