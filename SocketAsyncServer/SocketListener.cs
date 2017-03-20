@@ -446,7 +446,7 @@ namespace SocketAsyncServer
         public void CloseClient(string sessionId)
         {
             if (_clientDic.ContainsKey(sessionId))
-                CloseClientSocket(_clientDic[sessionId].AsynArgs);
+                CloseClientSocket(_clientDic[sessionId].AsynSocketArgs);
         }
 
         /// <summary>
@@ -472,7 +472,7 @@ namespace SocketAsyncServer
         {
             foreach (var item in _clientDic)
             {
-                CloseClientSocket(item.Value.AsynArgs);
+                CloseClientSocket(item.Value.AsynSocketArgs);
             }
 
             this.listenSocket.Close();
