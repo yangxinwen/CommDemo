@@ -45,7 +45,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\SocketAsyncServer\DuiAsynSocket.csproj">
+    <ProjectReference Include="..\DuiAsynSocket\DuiAsynSocket.csproj">
       <Project>{5ffe844e-4674-4a69-9f18-2122c5c27bc8}</Project>
       <Name>DuiAsynSocket</Name>
     </ProjectReference>
