@@ -14,6 +14,7 @@ namespace DuiAsynSocket
     /// Implements the connection logic for the socket server.  
     /// After accepting a connection, all data read from the client is sent back. 
     /// The read and echo back to the client pattern is continued until the client disconnects.
+    /// todo:若达到最大连接数后继续请求端口会被关闭
     /// </summary>
     public sealed class SocketListener
     {
@@ -111,7 +112,7 @@ namespace DuiAsynSocket
         /// </summary>
         /// <param name="numConnections">Maximum number of connections to be handled simultaneously.</param>
         /// <param name="bufferSize">Buffer size to use for each socket I/O operation.</param>
-        public SocketListener(Int32 numConnections, Int32 bufferSize)
+        public SocketListener(int numConnections, int bufferSize)
         {
             _clients = new Hashtable(numConnections);
             this._maxConnCount = numConnections;
@@ -121,7 +122,7 @@ namespace DuiAsynSocket
             this.semaphoreAcceptedClients = new Semaphore(numConnections, numConnections);
 
             // Preallocate pool of SocketAsyncEventArgs objects.
-            for (Int32 i = 0; i < this._maxConnCount; i++)
+            for (var i = 0; i < this._maxConnCount; i++)
             {
                 // Add SocketAsyncEventArg to the pool.
                 this.readWritePool.Push(CreateSocketAsync());
@@ -147,7 +148,7 @@ namespace DuiAsynSocket
         /// Starts the server listening for incoming connection requests.
         /// </summary>
         /// <param name="port">Port where the server will listen for connection requests.</param>
-        public void Start(Int32 port)
+        public void Start(int port)
         {
             // Get host related information.
             IPAddress[] addressList = Dns.GetHostEntry(Environment.MachineName).AddressList;
@@ -176,7 +177,7 @@ namespace DuiAsynSocket
             }
 
             // Start the server.
-            this.listenSocket.Listen(this._maxConnCount);
+            this.listenSocket.Listen(this._maxConnCount+100);
 
             ServiceStatus = ConnectStatus.Listening;
 

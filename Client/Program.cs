@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using DuiAsynSocket;
@@ -14,6 +15,18 @@ namespace Service
         static void Main(string[] args)
         {
             TestClient();
+
+            //for (int i = 0; i < 1000; i++)
+            //{
+            //    var client = new TcpClient();
+            //    client.Connect("192.168.31.70", 2991);
+            //    if (client.Connected)
+            //        successCount++;
+            //    else
+            //        errorCount++;
+            //}
+
+            //Console.WriteLine($"成功:{successCount} 失败{errorCount}");
             Console.ReadLine();
         }
         private static uint sequenceId = 1;
@@ -34,16 +47,16 @@ namespace Service
         {
 
             var clients = new List<SocketClient>();
-            for (int i = 0; i < 5000; i++)
+            for (int i = 0; i < 1000; i++)
             {
                 try
                 {
-                    var client = new SocketClient("192.168.31.207", 2991);
+                    var client = new SocketClient();
                     client.HeartBeatsEnable = true;
                     //client.HeartBeatSpan = 30;
                     client.OnConnChangeEvent += Client_OnConnChangeEvent;
                     client.OnReceivedEvent += Client_OnReceivedEvent;
-                    client.Connect();
+                    client.Connect("192.168.31.70", 2991);
                     //var bytes = UTF8Encoding.Default.GetBytes("test" + i);
                     //client.Send(bytes);
                     clients.Add(client);
@@ -56,17 +69,17 @@ namespace Service
 
             Console.WriteLine("----------------");
 
-            Thread.Sleep(5 * 1000);
+            //Thread.Sleep(5 * 1000);
 
-            for (int i = 0; i < 100000; i++)
-            {
-                var client = clients[i % 5000];
-                if (client.ConnStatus != ConnectStatus.Connected)
-                    continue;
-                var bytes = GetSendData();
-                client.Send(bytes);
-                //Thread.Sleep(1000*10);
-            }
+            //for (int i = 0; i < 100000; i++)
+            //{
+            //    var client = clients[i % 5000];
+            //    if (client.ConnStatus != ConnectStatus.Connected)
+            //        continue;
+            //    var bytes = GetSendData();
+            //    client.Send(bytes);
+            //    //Thread.Sleep(1000*10);
+            //}
             Console.ReadLine();
         }
 

@@ -11,11 +11,6 @@ namespace DuiAsynSocket
     public sealed class SocketClient : IDisposable
     {
         #region Fields
-        /// <summary>
-        /// Listener endpoint.
-        /// </summary>
-        private IPEndPoint hostEndPoint;
-
 
         #endregion
 
@@ -89,7 +84,7 @@ namespace DuiAsynSocket
         /// </summary>
         /// <param name="hostName">Name of the host where the listener is running.</param>
         /// <param name="port">Number of the TCP port from the listener.</param>
-        public SocketClient(String hostName, Int32 port)
+        public SocketClient()
         {
             //// Get host related information.
             //IPHostEntry host = Dns.GetHostEntry(hostName);
@@ -98,9 +93,8 @@ namespace DuiAsynSocket
             //IPAddress[] addressList = host.AddressList;
 
             //// Instantiates the endpoint and socket.
-            //this.hostEndPoint = new IPEndPoint(addressList[addressList.Length - 1], port);
-            this.hostEndPoint = new IPEndPoint(IPAddress.Parse(hostName), port);
-            this._socket = new Socket(this.hostEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            //this.hostEndPoint = new IPEndPoint(addressList[addressList.Length - 1], port);    
+            this._socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             RaiseOnConnChange(new ConnStatusChangeArgs(string.Empty, ConnectStatus.Created));
         }
         #endregion
@@ -153,14 +147,14 @@ namespace DuiAsynSocket
         /// Connect to the host.
         /// </summary>
         /// <returns>True if connection has succeded, else false.</returns>
-        public void Connect()
+        public void Connect(string hostName, int port)
         {
             var connectArgs = new SocketAsyncEventArgs();
             connectArgs.UserToken = this._socket;
-            connectArgs.RemoteEndPoint = this.hostEndPoint;
-            //connectArgs.SetBuffer(new byte[1024], 0, 1024);
+            connectArgs.RemoteEndPoint = new IPEndPoint(IPAddress.Parse(hostName), port);
             connectArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnComplete);
-            _socket.ConnectAsync(connectArgs);
+            if (_socket.ConnectAsync(connectArgs) == false)
+                ProcessConnect(connectArgs);
         }
         private void OnComplete(object sender, SocketAsyncEventArgs e)
         {
@@ -243,7 +237,6 @@ namespace DuiAsynSocket
         }
         private void ProcessConnect(SocketAsyncEventArgs e)
         {
-
             // Set the flag for socket connected.
             if (e.SocketError == SocketError.Success)
             {
