@@ -56,13 +56,14 @@ namespace Service
                     //client.HeartBeatSpan = 30;
                     client.OnConnChangeEvent += Client_OnConnChangeEvent;
                     client.OnReceivedEvent += Client_OnReceivedEvent;
-                    client.Connect("192.168.31.70", 2991);
+                    client.Connect("127.0.0.1", 2991);
                     //var bytes = UTF8Encoding.Default.GetBytes("test" + i);
                     //client.Send(bytes);
                     clients.Add(client);
                 }
                 catch (Exception ex)
                 {
+
                 }
             }
 
@@ -88,7 +89,7 @@ namespace Service
             //Console.WriteLine("接收:"+Encoding.UTF8.GetString(obj.Data));
         }
 
-        private static int successCount =0;
+        private static int successCount = 0;
 
         private static int errorCount = 0;
 
