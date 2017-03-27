@@ -4,10 +4,10 @@ using pb = global::Google.ProtocolBuffers;
 using pbc = global::Google.ProtocolBuffers.Collections;
 using pbd = global::Google.ProtocolBuffers.Descriptors;
 using scg = global::System.Collections.Generic;
-namespace Service
+namespace DuiCommun
 {
 
-    public static partial class DataChangeModel
+    public static partial class Cfs
     {
 
         #region Extension registration
@@ -16,8 +16,8 @@ namespace Service
         }
         #endregion
         #region Static variables
-        internal static pbd::MessageDescriptor internal__static_Test_ExchangeData__Descriptor;
-        internal static pb::FieldAccess.FieldAccessorTable<global::Service.ExchangeData, global::Service.ExchangeData.Builder> internal__static_Test_ExchangeData__FieldAccessorTable;
+        internal static pbd::MessageDescriptor internal__static_DuiCommun_Request__Descriptor;
+        internal static pb::FieldAccess.FieldAccessorTable<global::DuiCommun.Request, global::DuiCommun.Request.Builder> internal__static_DuiCommun_Request__FieldAccessorTable;
         #endregion
         #region Descriptor
         public static pbd::FileDescriptor Descriptor
@@ -26,18 +26,18 @@ namespace Service
         }
         private static pbd::FileDescriptor descriptor;
 
-        static DataChangeModel()
+        static Cfs()
         {
             byte[] descriptorData = global::System.Convert.FromBase64String(
-                "CgljZnMucHJvdG8SBFRlc3QiXAoMRXhjaGFuZ2VEYXRhEhIKClNlcXVlbmNl" +
-                "SWQYASACKAcSEwoLTWVzc2FnZVR5cGUYAiACKAgSEQoJSXNSZXF1ZXN0GAMg" +
-                "AigIEhAKCEpzb25Cb2R5GAQgASgJ");
+                "CgljZnMucHJvdG8SCUR1aUNvbW11biJmCgdSZXF1ZXN0EhIKClNlcXVlbmNl" +
+                "SWQYASACKAcSEQoJU2Vzc2lvbklkGAIgAigHEg8KB0Z1bkNvZGUYAyACKAcS" +
+                "EAoISnNvbkJvZHkYBCABKAkSEQoJRGF0YUJ5dGVzGAUgASgM");
             pbd::FileDescriptor.InternalDescriptorAssigner assigner = delegate (pbd::FileDescriptor root) {
                 descriptor = root;
-                internal__static_Test_ExchangeData__Descriptor = Descriptor.MessageTypes[0];
-                internal__static_Test_ExchangeData__FieldAccessorTable =
-                    new pb::FieldAccess.FieldAccessorTable<global::Service.ExchangeData, global::Service.ExchangeData.Builder>(internal__static_Test_ExchangeData__Descriptor,
-                        new string[] { "SequenceId", "MessageType", "IsRequest", "JsonBody", });
+                internal__static_DuiCommun_Request__Descriptor = Descriptor.MessageTypes[0];
+                internal__static_DuiCommun_Request__FieldAccessorTable =
+                    new pb::FieldAccess.FieldAccessorTable<global::DuiCommun.Request, global::DuiCommun.Request.Builder>(internal__static_DuiCommun_Request__Descriptor,
+                        new string[] { "SequenceId", "SessionId", "FunCode", "JsonBody", "DataBytes", });
                 return null;
             };
             pbd::FileDescriptor.InternalBuildGeneratedFileFrom(descriptorData,
@@ -48,32 +48,32 @@ namespace Service
 
     }
     #region Messages
-    public sealed partial class ExchangeData : pb::GeneratedMessage<ExchangeData, ExchangeData.Builder>
+    public sealed partial class Request : pb::GeneratedMessage<Request, Request.Builder>
     {
-        private static readonly ExchangeData defaultInstance = new Builder().BuildPartial();
-        public static ExchangeData DefaultInstance
+        private static readonly Request defaultInstance = new Builder().BuildPartial();
+        public static Request DefaultInstance
         {
             get { return defaultInstance; }
         }
 
-        public override ExchangeData DefaultInstanceForType
+        public override Request DefaultInstanceForType
         {
             get { return defaultInstance; }
         }
 
-        protected override ExchangeData ThisMessage
+        protected override Request ThisMessage
         {
             get { return this; }
         }
 
         public static pbd::MessageDescriptor Descriptor
         {
-            get { return global::Service.DataChangeModel.internal__static_Test_ExchangeData__Descriptor; }
+            get { return global::DuiCommun.Cfs.internal__static_DuiCommun_Request__Descriptor; }
         }
 
-        protected override pb::FieldAccess.FieldAccessorTable<ExchangeData, ExchangeData.Builder> InternalFieldAccessors
+        protected override pb::FieldAccess.FieldAccessorTable<Request, Request.Builder> InternalFieldAccessors
         {
-            get { return global::Service.DataChangeModel.internal__static_Test_ExchangeData__FieldAccessorTable; }
+            get { return global::DuiCommun.Cfs.internal__static_DuiCommun_Request__FieldAccessorTable; }
         }
 
         public const int SequenceIdFieldNumber = 1;
@@ -89,28 +89,30 @@ namespace Service
             get { return sequenceId_; }
         }
 
-        public const int MessageTypeFieldNumber = 2;
-        private bool hasMessageType;
-        private bool messageType_ = false;
-        public bool HasMessageType
+        public const int SessionIdFieldNumber = 2;
+        private bool hasSessionId;
+        private uint sessionId_ = 0;
+        public bool HasSessionId
         {
-            get { return hasMessageType; }
+            get { return hasSessionId; }
         }
-        public bool MessageType
+        [global::System.CLSCompliant(false)]
+        public uint SessionId
         {
-            get { return messageType_; }
+            get { return sessionId_; }
         }
 
-        public const int IsRequestFieldNumber = 3;
-        private bool hasIsRequest;
-        private bool isRequest_ = false;
-        public bool HasIsRequest
+        public const int FunCodeFieldNumber = 3;
+        private bool hasFunCode;
+        private uint funCode_ = 0;
+        public bool HasFunCode
         {
-            get { return hasIsRequest; }
+            get { return hasFunCode; }
         }
-        public bool IsRequest
+        [global::System.CLSCompliant(false)]
+        public uint FunCode
         {
-            get { return isRequest_; }
+            get { return funCode_; }
         }
 
         public const int JsonBodyFieldNumber = 4;
@@ -125,13 +127,25 @@ namespace Service
             get { return jsonBody_; }
         }
 
+        public const int DataBytesFieldNumber = 5;
+        private bool hasDataBytes;
+        private pb::ByteString dataBytes_ = pb::ByteString.Empty;
+        public bool HasDataBytes
+        {
+            get { return hasDataBytes; }
+        }
+        public pb::ByteString DataBytes
+        {
+            get { return dataBytes_; }
+        }
+
         public override bool IsInitialized
         {
             get
             {
                 if (!hasSequenceId) return false;
-                if (!hasMessageType) return false;
-                if (!hasIsRequest) return false;
+                if (!hasSessionId) return false;
+                if (!hasFunCode) return false;
                 return true;
             }
         }
@@ -143,17 +157,21 @@ namespace Service
             {
                 output.WriteFixed32(1, SequenceId);
             }
-            if (HasMessageType)
+            if (HasSessionId)
             {
-                output.WriteBool(2, MessageType);
+                output.WriteFixed32(2, SessionId);
             }
-            if (HasIsRequest)
+            if (HasFunCode)
             {
-                output.WriteBool(3, IsRequest);
+                output.WriteFixed32(3, FunCode);
             }
             if (HasJsonBody)
             {
                 output.WriteString(4, JsonBody);
+            }
+            if (HasDataBytes)
+            {
+                output.WriteBytes(5, DataBytes);
             }
             UnknownFields.WriteTo(output);
         }
@@ -171,17 +189,21 @@ namespace Service
                 {
                     size += pb::CodedOutputStream.ComputeFixed32Size(1, SequenceId);
                 }
-                if (HasMessageType)
+                if (HasSessionId)
                 {
-                    size += pb::CodedOutputStream.ComputeBoolSize(2, MessageType);
+                    size += pb::CodedOutputStream.ComputeFixed32Size(2, SessionId);
                 }
-                if (HasIsRequest)
+                if (HasFunCode)
                 {
-                    size += pb::CodedOutputStream.ComputeBoolSize(3, IsRequest);
+                    size += pb::CodedOutputStream.ComputeFixed32Size(3, FunCode);
                 }
                 if (HasJsonBody)
                 {
                     size += pb::CodedOutputStream.ComputeStringSize(4, JsonBody);
+                }
+                if (HasDataBytes)
+                {
+                    size += pb::CodedOutputStream.ComputeBytesSize(5, DataBytes);
                 }
                 size += UnknownFields.SerializedSize;
                 memoizedSerializedSize = size;
@@ -189,55 +211,55 @@ namespace Service
             }
         }
 
-        public static ExchangeData ParseFrom(pb::ByteString data)
+        public static Request ParseFrom(pb::ByteString data)
         {
             return ((Builder)CreateBuilder().MergeFrom(data)).BuildParsed();
         }
-        public static ExchangeData ParseFrom(pb::ByteString data, pb::ExtensionRegistry extensionRegistry)
+        public static Request ParseFrom(pb::ByteString data, pb::ExtensionRegistry extensionRegistry)
         {
             return ((Builder)CreateBuilder().MergeFrom(data, extensionRegistry)).BuildParsed();
         }
-        public static ExchangeData ParseFrom(byte[] data)
+        public static Request ParseFrom(byte[] data)
         {
             return ((Builder)CreateBuilder().MergeFrom(data)).BuildParsed();
         }
-        public static ExchangeData ParseFrom(byte[] data, pb::ExtensionRegistry extensionRegistry)
+        public static Request ParseFrom(byte[] data, pb::ExtensionRegistry extensionRegistry)
         {
             return ((Builder)CreateBuilder().MergeFrom(data, extensionRegistry)).BuildParsed();
         }
-        public static ExchangeData ParseFrom(global::System.IO.Stream input)
+        public static Request ParseFrom(global::System.IO.Stream input)
         {
             return ((Builder)CreateBuilder().MergeFrom(input)).BuildParsed();
         }
-        public static ExchangeData ParseFrom(global::System.IO.Stream input, pb::ExtensionRegistry extensionRegistry)
+        public static Request ParseFrom(global::System.IO.Stream input, pb::ExtensionRegistry extensionRegistry)
         {
             return ((Builder)CreateBuilder().MergeFrom(input, extensionRegistry)).BuildParsed();
         }
-        public static ExchangeData ParseDelimitedFrom(global::System.IO.Stream input)
+        public static Request ParseDelimitedFrom(global::System.IO.Stream input)
         {
             return CreateBuilder().MergeDelimitedFrom(input).BuildParsed();
         }
-        public static ExchangeData ParseDelimitedFrom(global::System.IO.Stream input, pb::ExtensionRegistry extensionRegistry)
+        public static Request ParseDelimitedFrom(global::System.IO.Stream input, pb::ExtensionRegistry extensionRegistry)
         {
             return CreateBuilder().MergeDelimitedFrom(input, extensionRegistry).BuildParsed();
         }
-        public static ExchangeData ParseFrom(pb::CodedInputStream input)
+        public static Request ParseFrom(pb::CodedInputStream input)
         {
             return ((Builder)CreateBuilder().MergeFrom(input)).BuildParsed();
         }
-        public static ExchangeData ParseFrom(pb::CodedInputStream input, pb::ExtensionRegistry extensionRegistry)
+        public static Request ParseFrom(pb::CodedInputStream input, pb::ExtensionRegistry extensionRegistry)
         {
             return ((Builder)CreateBuilder().MergeFrom(input, extensionRegistry)).BuildParsed();
         }
         public static Builder CreateBuilder() { return new Builder(); }
         public override Builder ToBuilder() { return CreateBuilder(this); }
         public override Builder CreateBuilderForType() { return new Builder(); }
-        public static Builder CreateBuilder(ExchangeData prototype)
+        public static Builder CreateBuilder(Request prototype)
         {
             return (Builder)new Builder().MergeFrom(prototype);
         }
 
-        public sealed partial class Builder : pb::GeneratedBuilder<ExchangeData, Builder>
+        public sealed partial class Builder : pb::GeneratedBuilder<Request, Builder>
         {
             protected override Builder ThisBuilder
             {
@@ -245,16 +267,16 @@ namespace Service
             }
             public Builder() { }
 
-            ExchangeData result = new ExchangeData();
+            Request result = new Request();
 
-            protected override ExchangeData MessageBeingBuilt
+            protected override Request MessageBeingBuilt
             {
                 get { return result; }
             }
 
             public override Builder Clear()
             {
-                result = new ExchangeData();
+                result = new Request();
                 return this;
             }
 
@@ -265,30 +287,30 @@ namespace Service
 
             public override pbd::MessageDescriptor DescriptorForType
             {
-                get { return global::Service.ExchangeData.Descriptor; }
+                get { return global::DuiCommun.Request.Descriptor; }
             }
 
-            public override ExchangeData DefaultInstanceForType
+            public override Request DefaultInstanceForType
             {
-                get { return global::Service.ExchangeData.DefaultInstance; }
+                get { return global::DuiCommun.Request.DefaultInstance; }
             }
 
-            public override ExchangeData BuildPartial()
+            public override Request BuildPartial()
             {
                 if (result == null)
                 {
                     throw new global::System.InvalidOperationException("build() has already been called on this Builder");
                 }
-                ExchangeData returnMe = result;
+                Request returnMe = result;
                 result = null;
                 return returnMe;
             }
 
             public override Builder MergeFrom(pb::IMessage other)
             {
-                if (other is ExchangeData)
+                if (other is Request)
                 {
-                    return MergeFrom((ExchangeData)other);
+                    return MergeFrom((Request)other);
                 }
                 else
                 {
@@ -297,24 +319,28 @@ namespace Service
                 }
             }
 
-            public override Builder MergeFrom(ExchangeData other)
+            public override Builder MergeFrom(Request other)
             {
-                if (other == global::Service.ExchangeData.DefaultInstance) return this;
+                if (other == global::DuiCommun.Request.DefaultInstance) return this;
                 if (other.HasSequenceId)
                 {
                     SequenceId = other.SequenceId;
                 }
-                if (other.HasMessageType)
+                if (other.HasSessionId)
                 {
-                    MessageType = other.MessageType;
+                    SessionId = other.SessionId;
                 }
-                if (other.HasIsRequest)
+                if (other.HasFunCode)
                 {
-                    IsRequest = other.IsRequest;
+                    FunCode = other.FunCode;
                 }
                 if (other.HasJsonBody)
                 {
                     JsonBody = other.JsonBody;
+                }
+                if (other.HasDataBytes)
+                {
+                    DataBytes = other.DataBytes;
                 }
                 this.MergeUnknownFields(other.UnknownFields);
                 return this;
@@ -363,19 +389,24 @@ namespace Service
                                 SequenceId = input.ReadFixed32();
                                 break;
                             }
-                        case 16:
+                        case 21:
                             {
-                                MessageType = input.ReadBool();
+                                SessionId = input.ReadFixed32();
                                 break;
                             }
-                        case 24:
+                        case 29:
                             {
-                                IsRequest = input.ReadBool();
+                                FunCode = input.ReadFixed32();
                                 break;
                             }
                         case 34:
                             {
                                 JsonBody = input.ReadString();
+                                break;
+                            }
+                        case 42:
+                            {
+                                DataBytes = input.ReadBytes();
                                 break;
                             }
                     }
@@ -407,47 +438,51 @@ namespace Service
                 return this;
             }
 
-            public bool HasMessageType
+            public bool HasSessionId
             {
-                get { return result.HasMessageType; }
+                get { return result.HasSessionId; }
             }
-            public bool MessageType
+            [global::System.CLSCompliant(false)]
+            public uint SessionId
             {
-                get { return result.MessageType; }
-                set { SetMessageType(value); }
+                get { return result.SessionId; }
+                set { SetSessionId(value); }
             }
-            public Builder SetMessageType(bool value)
+            [global::System.CLSCompliant(false)]
+            public Builder SetSessionId(uint value)
             {
-                result.hasMessageType = true;
-                result.messageType_ = value;
+                result.hasSessionId = true;
+                result.sessionId_ = value;
                 return this;
             }
-            public Builder ClearMessageType()
+            public Builder ClearSessionId()
             {
-                result.hasMessageType = false;
-                result.messageType_ = false;
+                result.hasSessionId = false;
+                result.sessionId_ = 0;
                 return this;
             }
 
-            public bool HasIsRequest
+            public bool HasFunCode
             {
-                get { return result.HasIsRequest; }
+                get { return result.HasFunCode; }
             }
-            public bool IsRequest
+            [global::System.CLSCompliant(false)]
+            public uint FunCode
             {
-                get { return result.IsRequest; }
-                set { SetIsRequest(value); }
+                get { return result.FunCode; }
+                set { SetFunCode(value); }
             }
-            public Builder SetIsRequest(bool value)
+            [global::System.CLSCompliant(false)]
+            public Builder SetFunCode(uint value)
             {
-                result.hasIsRequest = true;
-                result.isRequest_ = value;
+                result.hasFunCode = true;
+                result.funCode_ = value;
                 return this;
             }
-            public Builder ClearIsRequest()
+            public Builder ClearFunCode()
             {
-                result.hasIsRequest = false;
-                result.isRequest_ = false;
+                result.hasFunCode = false;
+                result.funCode_ = 0;
                 return this;
             }
 
@@ -473,10 +508,33 @@ namespace Service
                 result.jsonBody_ = "";
                 return this;
             }
+
+            public bool HasDataBytes
+            {
+                get { return result.HasDataBytes; }
+            }
+            public pb::ByteString DataBytes
+            {
+                get { return result.DataBytes; }
+                set { SetDataBytes(value); }
+            }
+            public Builder SetDataBytes(pb::ByteString value)
+            {
+                pb::ThrowHelper.ThrowIfNull(value, "value");
+                result.hasDataBytes = true;
+                result.dataBytes_ = value;
+                return this;
+            }
+            public Builder ClearDataBytes()
+            {
+                result.hasDataBytes = false;
+                result.dataBytes_ = pb::ByteString.Empty;
+                return this;
+            }
         }
-        static ExchangeData()
+        static Request()
         {
-            object.ReferenceEquals(global::Service.DataChangeModel.Descriptor, null);
+            object.ReferenceEquals(global::DuiCommun.Cfs.Descriptor, null);
         }
     }
 

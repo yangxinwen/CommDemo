@@ -8,8 +8,8 @@
     <ProjectGuid>{5FFE844E-4674-4A69-9F18-2122C5C27BC8}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>SocketAsyncServer</RootNamespace>
-    <AssemblyName>SocketAsyncServer</AssemblyName>
+    <RootNamespace>DuiAsynSocket</RootNamespace>
+    <AssemblyName>DuiAsynSocket</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileUpgradeFlags>
     </FileUpgradeFlags>

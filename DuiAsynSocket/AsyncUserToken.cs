@@ -6,6 +6,9 @@ using System.Text;
 
 namespace DuiAsynSocket
 {
+    /// <summary>
+    /// 异步操作的用户token信息
+    /// </summary>
     public class AsyncUserToken : IDisposable
     {
         public SocketAsyncEventArgs AsynSocketArgs { get; private set; }
