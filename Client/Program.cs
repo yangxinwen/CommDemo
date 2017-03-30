@@ -7,6 +7,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using DuiAsynSocket;
+using DuiCommun;
 
 namespace Service
 {
@@ -14,27 +15,26 @@ namespace Service
     {
         static void Main(string[] args)
         {
-            TestClient();
+            //TestClient();
 
-            //for (int i = 0; i < 1000; i++)
-            //{
-            //    var client = new TcpClient();
-            //    client.Connect("192.168.31.70", 2991);
-            //    if (client.Connected)
-            //        successCount++;
-            //    else
-            //        errorCount++;
-            //}
+            for (int i = 0; i < 700; i++)
+            {
+                var client = new TcpClient();
+                client.Connect("192.168.31.70", 2991);
+                if (client.Connected)
+                    successCount++;
+                else
+                    errorCount++;
+            }
 
-            //Console.WriteLine($"成功:{successCount} 失败{errorCount}");
+            Console.WriteLine($"成功:{successCount} 失败{errorCount}");
             Console.ReadLine();
         }
         private static uint sequenceId = 1;
         private static byte[] GetSendData()
         {
-            var model = ExchangeData.CreateBuilder();
-            model.IsRequest = true;
-            model.MessageType = true;
+            var model = Request.CreateBuilder();
+            model.SessionId = 123456;
             model.SequenceId = sequenceId++;
             model.JsonBody = "test";
 
@@ -47,7 +47,7 @@ namespace Service
         {
 
             var clients = new List<SocketClient>();
-            for (int i = 0; i < 1000; i++)
+            for (int i = 0; i < 800; i++)
             {
                 try
                 {

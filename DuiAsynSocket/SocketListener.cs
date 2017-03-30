@@ -14,7 +14,6 @@ namespace DuiAsynSocket
     /// Implements the connection logic for the socket server.  
     /// After accepting a connection, all data read from the client is sent back. 
     /// The read and echo back to the client pattern is continued until the client disconnects.
-    /// todo:若达到最大连接数后继续请求端口会被关闭
     /// </summary>
     public sealed class SocketListener
     {
@@ -177,7 +176,7 @@ namespace DuiAsynSocket
             }
 
             // Start the server.
-            this.listenSocket.Listen(this._maxConnCount+100);
+            this.listenSocket.Listen(this._maxConnCount + 100);
 
             ServiceStatus = ConnectStatus.Listening;
 
@@ -305,7 +304,7 @@ namespace DuiAsynSocket
         private void ProcessReceive(SocketAsyncEventArgs e)
         {
             AsyncUserToken token = e.UserToken as AsyncUserToken;
-
+            token.AsynSocketArgs = e;
             // Check if the remote host closed the connection.
             if (e.BytesTransferred > 0)
             {
@@ -512,6 +511,7 @@ namespace DuiAsynSocket
             if (token == null)
                 return;
 
+            var args = token.AsynSocketArgs;
             RemoveClient(token.SessionId);
             token.Dispose();
             if (ServiceStatus == ConnectStatus.Listening)
@@ -520,7 +520,7 @@ namespace DuiAsynSocket
                 this.semaphoreAcceptedClients.Release();
             }
             // Free the SocketAsyncEventArg so they can be reused by another client.
-            this.readWritePool.Push(CreateSocketAsync());
+            this.readWritePool.Push(args);
         }
 
         /// <summary>
@@ -536,6 +536,9 @@ namespace DuiAsynSocket
             {
                 CloseClientSocket(item);
             }
+            readWritePool.Clear();
+            //主动回收内存，否则内存不会被马上回收
+            GC.Collect();
         }
 
         #endregion

@@ -86,16 +86,7 @@ namespace DuiAsynSocket
         /// <param name="port">Number of the TCP port from the listener.</param>
         public SocketClient()
         {
-            //// Get host related information.
-            //IPHostEntry host = Dns.GetHostEntry(hostName);
-
-            //// Addres of the host.
-            //IPAddress[] addressList = host.AddressList;
-
-            //// Instantiates the endpoint and socket.
-            //this.hostEndPoint = new IPEndPoint(addressList[addressList.Length - 1], port);    
-            this._socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            RaiseOnConnChange(new ConnStatusChangeArgs(string.Empty, ConnectStatus.Created));
+            //_socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         }
         #endregion
 
@@ -149,20 +140,26 @@ namespace DuiAsynSocket
         /// <returns>True if connection has succeded, else false.</returns>
         public void Connect(string hostName, int port)
         {
-            var connectArgs = new SocketAsyncEventArgs();
-            connectArgs.UserToken = this._socket;
-            connectArgs.RemoteEndPoint = new IPEndPoint(IPAddress.Parse(hostName), port);
-            connectArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnComplete);
-            if (_socket.ConnectAsync(connectArgs) == false)
-                ProcessConnect(connectArgs);
+            _connStatus = ConnectStatus.Created;
+            try
+            {
+                _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                _socket.Connect(new IPEndPoint(IPAddress.Parse(hostName), port));
+                if (_socket.Connected)
+                {
+                    ConnStatus = ConnectStatus.Connected;
+                    ProcessConnect();
+                }
+            }
+            catch (Exception ex)
+            {
+                ConnStatus = ConnectStatus.Fault;
+            }
         }
-        private void OnComplete(object sender, SocketAsyncEventArgs e)
+        private void OnIOComplete(object sender, SocketAsyncEventArgs e)
         {
             switch (e.LastOperation)
             {
-                case SocketAsyncOperation.Connect:
-                    ProcessConnect(e);
-                    break;
                 case SocketAsyncOperation.Receive:
                     ProcessReceive(e);
                     break;
@@ -235,26 +232,39 @@ namespace DuiAsynSocket
             }
             ConnStatus = ConnectStatus.Fault;
         }
-        private void ProcessConnect(SocketAsyncEventArgs e)
+        private void ProcessConnect()
         {
-            // Set the flag for socket connected.
-            if (e.SocketError == SocketError.Success)
-            {
-                var so = new SocketAsyncEventArgs();
-                so.Completed += new EventHandler<SocketAsyncEventArgs>(OnComplete);
-                so.UserToken = new AsyncUserToken(so);
-                so.SetBuffer(new Byte[_bufferSize], 0, _bufferSize);
-                //so.RemoteEndPoint = hostEndPoint;
-                if (_socket.ReceiveAsync(so) == false)
-                    ProcessReceive(so);
+            var so = new SocketAsyncEventArgs();
+            so.Completed += new EventHandler<SocketAsyncEventArgs>(OnIOComplete);
+            so.UserToken = new AsyncUserToken(so);
+            so.SetBuffer(new Byte[_bufferSize], 0, _bufferSize);
+            if (_socket.ReceiveAsync(so) == false)
+                ProcessReceive(so);
 
-                ConnStatus = ConnectStatus.Connected;
-
-                InitHeartBeatsTimer();
-            }
-            else
-                ConnStatus = ConnectStatus.Fault;
+            ConnStatus = ConnectStatus.Connected;
+            InitHeartBeatsTimer();
         }
+
+        //private void ProcessConnect(SocketAsyncEventArgs e)
+        //{
+        //    // Set the flag for socket connected.
+        //    if (e.SocketError == SocketError.Success)
+        //    {
+        //        var so = new SocketAsyncEventArgs();
+        //        so.Completed += new EventHandler<SocketAsyncEventArgs>(OnComplete);
+        //        so.UserToken = new AsyncUserToken(so);
+        //        so.SetBuffer(new Byte[_bufferSize], 0, _bufferSize);
+        //        //so.RemoteEndPoint = hostEndPoint;
+        //        if (_socket.ReceiveAsync(so) == false)
+        //            ProcessReceive(so);
+
+        //        ConnStatus = ConnectStatus.Connected;
+
+        //        InitHeartBeatsTimer();
+        //    }
+        //    else
+        //        ConnStatus = ConnectStatus.Fault;
+        //}
         private void RaiseOnConnChange(ConnStatusChangeArgs args)
         {
             try

@@ -15,6 +15,15 @@ namespace DuiAsynSocket
         /// </summary>
         Stack<SocketAsyncEventArgs> pool;
 
+        internal int Count
+        {
+            get
+            {
+                if (pool == null)
+                    return 0;
+                return pool.Count;
+            }
+        }
         /// <summary>
         /// Initializes the object pool to the specified size.
         /// </summary>
@@ -49,13 +58,31 @@ namespace DuiAsynSocket
         /// <param name="item">SocketAsyncEventArgs instance to add to the pool.</param>
         internal void Push(SocketAsyncEventArgs item)
         {
-            if (item == null) 
-            { 
-                throw new ArgumentNullException("Items added to a SocketAsyncEventArgsPool cannot be null"); 
+            if (item == null)
+            {
+                throw new ArgumentNullException("Items added to a SocketAsyncEventArgsPool cannot be null");
             }
             lock (this.pool)
             {
                 this.pool.Push(item);
+            }
+        }
+
+        internal void Clear()
+        {
+            lock (this.pool)
+            {
+                while (true)
+                {
+                    if (pool == null || pool.Count <= 0)
+                        break;
+                    var args = pool.Pop();
+                    if (args != null)
+                    {
+                        args.SetBuffer(null, 0, 0);
+                        args = null;
+                    }
+                }
             }
         }
     }

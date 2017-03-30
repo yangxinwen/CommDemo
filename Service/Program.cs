@@ -21,7 +21,7 @@ namespace Service
         static SocketListener service = null;
         private static void TestService()
         {
-            service = new SocketListener(5000, 1024);
+            service = new SocketListener(1000, 1024*1024);
             service.Start(2991);
             service.OnReceived += Service_OnReceivedEvent;
             service.OnClientConnChange += Service_OnClientConnChangeEvent;
