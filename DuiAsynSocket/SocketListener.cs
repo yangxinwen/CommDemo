@@ -209,6 +209,15 @@ namespace DuiAsynSocket
             }
             else
             {
+                //超过最大的连接之后的连接都直接断开，直到有多余的才放开
+                if (_clients.Count >= _maxConnCount - 1)
+                {
+                    if (acceptEventArg.AcceptSocket != null && acceptEventArg.AcceptSocket.Connected)
+                    {
+                        acceptEventArg.AcceptSocket.Close();
+                    }
+                }
+
                 // Socket must be cleared since the context object is being reused.
                 acceptEventArg.AcceptSocket = null;
             }
