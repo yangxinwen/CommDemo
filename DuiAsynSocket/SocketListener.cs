@@ -6,6 +6,7 @@ using System.Net;
 using System.Text;
 using System.Collections.Generic;
 using System.Collections;
+using System.Linq;
 
 namespace DuiAsynSocket
 {
@@ -14,6 +15,7 @@ namespace DuiAsynSocket
     /// Implements the connection logic for the socket server.  
     /// After accepting a connection, all data read from the client is sent back. 
     /// The read and echo back to the client pattern is continued until the client disconnects.
+    /// todo:若达到最大连接数后继续请求端口会被关闭
     /// </summary>
     public sealed class SocketListener
     {
@@ -37,7 +39,9 @@ namespace DuiAsynSocket
         /// Controls the total number of clients connected to the server.
         /// </summary>
         private Semaphore semaphoreAcceptedClients;
-
+        /// <summary>
+        /// 存储sessionid和用户socket数据
+        /// </summary>
         private Hashtable _clients = null;
         #endregion
 
@@ -100,6 +104,11 @@ namespace DuiAsynSocket
         /// </summary>
         public event Action<ConnStatusChangeArgs> OnServiceStatusChange;
 
+        /// <summary>
+        /// 是否把网络字节顺序转为本地字节顺序
+        /// </summary>
+        public bool NetByteOrder { get; set; }
+
         #endregion
 
         #region Constructors
@@ -118,7 +127,7 @@ namespace DuiAsynSocket
             this.bufferSize = bufferSize;
 
             this.readWritePool = new SocketAsyncEventArgsPool(numConnections);
-            this.semaphoreAcceptedClients = new Semaphore(numConnections, numConnections);
+            this.semaphoreAcceptedClients = new Semaphore(numConnections, numConnections + 1);
 
             // Preallocate pool of SocketAsyncEventArgs objects.
             for (var i = 0; i < this._maxConnCount; i++)
@@ -176,7 +185,8 @@ namespace DuiAsynSocket
             }
 
             // Start the server.
-            this.listenSocket.Listen(this._maxConnCount + 100);
+            //启动服务，空余100个空闲的连接防止端口连接满了后之后都不接收连接的问题
+            this.listenSocket.Listen(this._maxConnCount + 50);
 
             ServiceStatus = ConnectStatus.Listening;
 
@@ -209,15 +219,14 @@ namespace DuiAsynSocket
             }
             else
             {
-                //超过最大的连接之后的连接都直接断开，直到有多余的才放开
-                if (_clients.Count >= _maxConnCount - 1)
+                //超过最大的连接之后的连接都直接断开，直到有多余的才放开,可解决连接达到上限后即使下线端口也不在接收新的连接的问题
+                if (_clients.Count >= _maxConnCount)
                 {
                     if (acceptEventArg.AcceptSocket != null && acceptEventArg.AcceptSocket.Connected)
                     {
                         acceptEventArg.AcceptSocket.Close();
                     }
                 }
-
                 // Socket must be cleared since the context object is being reused.
                 acceptEventArg.AcceptSocket = null;
             }
@@ -319,9 +328,36 @@ namespace DuiAsynSocket
             {
                 if (e.SocketError == SocketError.Success)
                 {
-                    var bytes = new byte[e.BytesTransferred];
-                    Array.Copy(e.Buffer, e.Offset, bytes, 0, e.BytesTransferred);
-                    RaiseOnReceive(new DataReceivedArgs(token.SessionId, bytes));
+                    var data = new byte[e.BytesTransferred];
+                    Array.Copy(e.Buffer, e.Offset, data, 0, e.BytesTransferred);
+
+                    if (IsSplitPack)
+                    {
+                        int index = 0;
+                        while (index < data.Length - 4)
+                        {                        
+                            var lenght = BitConverter.ToInt32(data, index);
+
+                            if (NetByteOrder)
+                                lenght = System.Net.IPAddress.NetworkToHostOrder(lenght); //把网络字节顺序转为本地字节顺序
+
+                            if (lenght > 0 && index + lenght + 4 <= data.Length)
+                            {
+                                var splitData = new byte[lenght];
+                                Array.Copy(data, index + 4, splitData, 0, lenght);
+                                index = index + lenght + 4;
+                                RaiseOnReceive(new DataReceivedArgs(token.SessionId, splitData));
+                            }
+                            else
+                            {
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        RaiseOnReceive(new DataReceivedArgs(token.SessionId, data));
+                    }
 
                     if (!token.Socket.ReceiveAsync(e))
                     {
@@ -342,12 +378,18 @@ namespace DuiAsynSocket
 
         private void AddClient(string sessionId, AsyncUserToken token)
         {
-            _clients.Add(sessionId, token);
+            lock (_clients.SyncRoot)
+            {
+                _clients.Add(sessionId, token);
+            }
             RaiseOnClientConnChange(new ConnStatusChangeArgs(sessionId, ConnectStatus.Connected));
         }
         private void RemoveClient(string sessionId)
         {
-            _clients.Remove(sessionId);
+            lock (_clients.SyncRoot)
+            {
+                _clients.Remove(sessionId);
+            }
             RaiseOnClientConnChange(new ConnStatusChangeArgs(sessionId, ConnectStatus.Closed));
         }
 
@@ -367,7 +409,10 @@ namespace DuiAsynSocket
         {
             try
             {
-                OnReceived?.Invoke(args);
+                var data = args.Data;
+                //2017为与客户端约定的心跳包
+                if ((data.Length == 4 && data[0] == 2 && data[1] == 0 && data[2] == 1 && data[3] == 7) == false)
+                    OnReceived?.Invoke(args);
             }
             catch (Exception)
             {
@@ -375,40 +420,11 @@ namespace DuiAsynSocket
             }
         }
 
-        #region 发送数据
-
+        #region 发送数据   
         /// <summary>
-        /// 异步的发送数据
+        /// 是否分包标识，每次数据发送和接收的前4个字节代表数据长度
         /// </summary>
-        /// <param name="e"></param>
-        /// <param name="data"></param>
-        //public void SendAsyn(string sessionId, byte[] data)
-        //{
-        //    if (_clientDic.ContainsKey(sessionId))
-        //    {
-        //        var e = _clientDic[sessionId].SocketArgs;
-        //        if (e.SocketError == SocketError.Success)
-        //        {
-        //            Socket s = e.AcceptSocket;//和客户端关联的socket
-        //            if (s.Connected)
-        //            {
-        //                Array.Copy(data, 0, e.Buffer, 0, data.Length);//设置发送数据
-
-        //                e.SetBuffer(data, 0, data.Length); //设置发送数据
-        //                if (!s.SendAsync(e))//投递发送请求，这个函数有可能同步发送出去，这时返回false，并且不会引发SocketAsyncEventArgs.Completed事件
-        //                {
-        //                    // 同步发送时处理发送完成事件
-        //                    ProcessSend(e);
-        //                }
-        //                else
-        //                {
-        //                    CloseClientSocket(e);
-        //                }
-        //            }
-        //        }
-        //    }
-        //}
-
+        public bool IsSplitPack = true;
         /// <summary>
         /// 同步发送数据
         /// </summary>
@@ -433,7 +449,18 @@ namespace DuiAsynSocket
                     }
                     try
                     {
-                        sent += socket.Send(data, sent, data.Length, SocketFlags.None);
+                        if (IsSplitPack)
+                        {
+                            var lenght = data.Length;
+                            var list = new List<byte>(BitConverter.GetBytes(lenght));
+                            list.AddRange(data);
+                            sent += socket.Send(list.ToArray());
+                        }
+                        else
+                        {
+                            //sent += socket.Send(data, sent, data.Length, SocketFlags.None);
+                            sent += socket.Send(data);
+                        }
                         break;
                     }
                     catch (SocketException ex)
@@ -483,9 +510,9 @@ namespace DuiAsynSocket
         }
         #endregion       
 
-        public ICollection<string> GetClients()
+        public IEnumerable<string> GetClients()
         {
-            return (ICollection<string>)_clients.Keys;
+            return _clients.Keys.Cast<string>();
         }
 
         /// <summary>

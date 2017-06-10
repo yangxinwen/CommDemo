@@ -80,7 +80,7 @@ namespace DuiAsynSocket
                     if (args != null)
                     {
                         args.SetBuffer(null, 0, 0);
-                        args = null;
+                        args=null;
                     }
                 }
             }
