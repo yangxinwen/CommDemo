@@ -121,7 +121,9 @@ namespace DuiAsynSocket
         /// 是否把网络字节顺序转为本地字节顺序
         /// </summary>
         public bool NetByteOrder { get; set; }
-
+        /// <summary>
+        /// 上次数据交换时间
+        /// </summary>
         private int _lastExchangeTime = Environment.TickCount;
         private void InitHeartBeatsTimer()
         {
@@ -197,6 +199,11 @@ namespace DuiAsynSocket
                 this.ProcessError(e);
             }
         }
+
+        private List<byte> _list = new List<byte>();
+
+        private string _sessionId = Guid.NewGuid().ToString();
+
         /// <summary>
         /// 是否分包标识，每次数据发送和接收的前4个字节代表数据长度
         /// </summary>
@@ -207,33 +214,40 @@ namespace DuiAsynSocket
             {
                 if (e.SocketError == SocketError.Success)
                 {
-                    var data = new byte[e.BytesTransferred];
-                    Array.Copy(e.Buffer, e.Offset, data, 0, e.BytesTransferred);
                     if (IsSplitPack)
                     {
-                        int index = 0;
-                        while (index < data.Length - 4)
+                        DynamicBufferManager.WriteBuffer(_sessionId, e.Buffer, e.Offset, e.BytesTransferred);
+                        var list = DynamicBufferManager.PopPackets(_sessionId);
+                        foreach (var item in list)
                         {
-                            var lenght = BitConverter.ToInt32(data, index);
-
-                            if (NetByteOrder)
-                                lenght = System.Net.IPAddress.NetworkToHostOrder(lenght); //把网络字节顺序转为本地字节顺序
-
-                            if (lenght > 0 && index + lenght + 4 <= data.Length)
-                            {
-                                var splitData = new byte[lenght];
-                                Array.Copy(data, index + 4, splitData, 0, lenght);
-                                index = index + lenght + 4;
-                                RaiseOnReceive(new DataReceivedArgs(splitData));
-                            }
-                            else
-                            {
-                                break;
-                            }
+                            RaiseOnReceive(new DataReceivedArgs(_sessionId, item));
                         }
+
+                        //int index = 0;
+                        //while (index < data.Length - 4)
+                        //{
+                        //    var lenght = BitConverter.ToInt32(data, index);
+
+                        //    if (NetByteOrder)
+                        //        lenght = System.Net.IPAddress.NetworkToHostOrder(lenght); //把网络字节顺序转为本地字节顺序
+
+                        //    if (lenght > 0 && index + lenght + 4 <= data.Length)
+                        //    {
+                        //        var splitData = new byte[lenght];
+                        //        Array.Copy(data, index + 4, splitData, 0, lenght);
+                        //        index = index + lenght + 4;
+                        //        RaiseOnReceive(new DataReceivedArgs(splitData));
+                        //    }
+                        //    else
+                        //    {
+                        //        break;
+                        //    }
+                        //}
                     }
                     else
                     {
+                        var data = new byte[e.BytesTransferred];
+                        Array.Copy(e.Buffer, e.Offset, data, 0, e.BytesTransferred);
                         RaiseOnReceive(new DataReceivedArgs(data));
                     }
 
@@ -351,55 +365,44 @@ namespace DuiAsynSocket
         {
             _lastExchangeTime = Environment.TickCount;
 
-            int sent = 0; // how many bytes is already sent
+            int sent = 0;
             if (_socket != null && _socket.Connected)
             {
                 var socket = _socket;
-                socket.SendTimeout = 0;
-                int startTickCount = Environment.TickCount;
-                //使用do while后期可改造大数据分多次发送
-                do
+                socket.SendTimeout = timeout;
+                try
                 {
-                    if (timeout > 0 && (Environment.TickCount > startTickCount + timeout))
+                    if (IsSplitPack)
                     {
-                        return sent;
+                        var lenght = data.Length;
+                        var list = new List<byte>(BitConverter.GetBytes(lenght));
+                        list.AddRange(data);
+                        sent += socket.Send(list.ToArray());
                     }
-                    try
+                    else
                     {
-                        if (IsSplitPack)
-                        {
-                            //sent += socket.Send(data, sent, data.Length, SocketFlags.None);
-                            var lenght = data.Length;
-                            var list = new List<byte>(BitConverter.GetBytes(lenght));
-                            list.AddRange(data);
-                            sent += socket.Send(list.ToArray());
-                        }
-                        else
-                        {
-                            //sent += socket.Send(data, sent, data.Length, SocketFlags.None);
-                            sent += socket.Send(data);
-                        }
-                        break;
+                        sent += socket.Send(data);
                     }
-                    catch (SocketException ex)
+                }
+                catch (SocketException ex)
+                {
+                    if (ex.SocketErrorCode == SocketError.WouldBlock ||
+                    ex.SocketErrorCode == SocketError.IOPending ||
+                    ex.SocketErrorCode == SocketError.NoBufferSpaceAvailable)
                     {
-                        if (ex.SocketErrorCode == SocketError.WouldBlock ||
-                        ex.SocketErrorCode == SocketError.IOPending ||
-                        ex.SocketErrorCode == SocketError.NoBufferSpaceAvailable)
-                        {
-                            // socket buffer is probably full, wait and try again
-                            Thread.Sleep(30);
-                        }
-                        else
-                        {
-                            ConnStatus = ConnectStatus.Fault;
-                            break; // any serious error occurr
-                        }
+                        // socket buffer is probably full, wait and try again
+                        Thread.Sleep(30);
                     }
-                } while (true);
+                    else
+                    {
+                        ConnStatus = ConnectStatus.Fault;
+                    }
+                }
             }
             else
+            {
                 ConnStatus = ConnectStatus.Fault;
+            }
             return sent;
         }
 

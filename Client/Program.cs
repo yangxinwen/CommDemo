@@ -20,14 +20,29 @@ namespace Service
             //for (int i = 0; i < 700; i++)
             {
                 var client = new SocketClient();
+                client.IsSplitPack = true;
+                client.BufferSize = 1024 * 1;
                 client.Connect("127.0.0.1", 2991);
 
-                //while (true)
+                //while (true)-
                 {
+                    {
+                        var data = new byte[1024 * 1024];
+                        var value = BitConverter.GetBytes(10000);
+                        Array.Copy(value, data, 4);
+                        data[data.Length - 1] = 2;
+                        client.Send(data);
+                    }
+
                     for (int i = 0; i < 10000; i++)
                     {
-                        //Thread.Sleep(100);
-                        client.Send(BitConverter.GetBytes(i));
+                        Thread.Sleep(100);
+                        var data = new byte[1024 * 2];
+                        var value = BitConverter.GetBytes(i);
+                        Array.Copy(value, data, 4);
+                        data[data.Length - 1] = 2;
+                        client.Send(data);
+                        //client.Send(BitConverter.GetBytes(i));
                     }
                 }
             }

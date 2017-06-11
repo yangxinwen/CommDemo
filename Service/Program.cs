@@ -22,7 +22,8 @@ namespace Service
         static SocketListener service = null;
         private static void TestService()
         {
-            service = new SocketListener(1000, 1024*10);
+            service = new SocketListener(1000, 1024 * 4);
+            service.IsSplitPack = true;
             service.Start(2991);
             service.OnReceived += Service_OnReceivedEvent;
             service.OnClientConnChange += Service_OnClientConnChangeEvent;
@@ -62,7 +63,9 @@ namespace Service
             //var model = ExchangeData.ParseFrom(obj.Data);
             //Console.WriteLine($"data: {model.SequenceId} {model.MessageType} {model.IsRequest} {model.JsonBody}");
             //service.Send(obj.SessionId, obj.Data);
-            Debug.WriteLine(BitConverter.ToInt32(obj.Data,0));
+            Debug.WriteLine(BitConverter.ToInt32(obj.Data, 0) + "  " + obj.Data[obj.Data.Length - 1]);
+
+            //Debug.WriteLine(obj.Data[0] + "  " + obj.Data[obj.Data.Length - 1]);
         }
 
         private static void Service_DataReceived(byte[] obj)

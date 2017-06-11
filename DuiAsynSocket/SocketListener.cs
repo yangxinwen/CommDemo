@@ -328,34 +328,42 @@ namespace DuiAsynSocket
             {
                 if (e.SocketError == SocketError.Success)
                 {
-                    var data = new byte[e.BytesTransferred];
-                    Array.Copy(e.Buffer, e.Offset, data, 0, e.BytesTransferred);
 
                     if (IsSplitPack)
                     {
-                        int index = 0;
-                        while (index < data.Length - 4)
-                        {                        
-                            var lenght = BitConverter.ToInt32(data, index);
-
-                            if (NetByteOrder)
-                                lenght = System.Net.IPAddress.NetworkToHostOrder(lenght); //把网络字节顺序转为本地字节顺序
-
-                            if (lenght > 0 && index + lenght + 4 <= data.Length)
-                            {
-                                var splitData = new byte[lenght];
-                                Array.Copy(data, index + 4, splitData, 0, lenght);
-                                index = index + lenght + 4;
-                                RaiseOnReceive(new DataReceivedArgs(token.SessionId, splitData));
-                            }
-                            else
-                            {
-                                break;
-                            }
+                        DynamicBufferManager.WriteBuffer(token.SessionId, e.Buffer, e.Offset, e.BytesTransferred);
+                        var list = DynamicBufferManager.PopPackets(token.SessionId);
+                        foreach (var item in list)
+                        {
+                            RaiseOnReceive(new DataReceivedArgs(token.SessionId, item));
                         }
+
+
+                        //int index = 0;
+                        //while (index < data.Length - 4)
+                        //{                        
+                        //    var lenght = BitConverter.ToInt32(data, index);
+
+                        //    if (NetByteOrder)
+                        //        lenght = System.Net.IPAddress.NetworkToHostOrder(lenght); //把网络字节顺序转为本地字节顺序
+
+                        //    if (lenght > 0 && index + lenght + 4 <= data.Length)
+                        //    {
+                        //        var splitData = new byte[lenght];
+                        //        Array.Copy(data, index + 4, splitData, 0, lenght);
+                        //        index = index + lenght + 4;
+                        //        RaiseOnReceive(new DataReceivedArgs(token.SessionId, splitData));
+                        //    }
+                        //    else
+                        //    {
+                        //        break;
+                        //    }
+                        //}
                     }
                     else
                     {
+                        var data = new byte[e.BytesTransferred];
+                        Array.Copy(e.Buffer, e.Offset, data, 0, e.BytesTransferred);
                         RaiseOnReceive(new DataReceivedArgs(token.SessionId, data));
                     }
 
@@ -546,6 +554,8 @@ namespace DuiAsynSocket
         {
             if (token == null)
                 return;
+
+            DynamicBufferManager.Remove(token.SessionId);
 
             var args = token.AsynSocketArgs;
             RemoveClient(token.SessionId);
