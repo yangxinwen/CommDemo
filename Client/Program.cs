@@ -17,40 +17,65 @@ namespace Service
         {
             //TestClient();
 
-            //for (int i = 0; i < 700; i++)
+            var list = new List<SocketClient>();
+
+            for (int i = 0; i < 700; i++)
             {
                 var client = new SocketClient();
                 client.IsSplitPack = true;
-                client.BufferSize = 1024 * 1;
+                client.IsUseHeartBeatCertificate = false;
+                client.HeartBeatsEnable = false;
+                client.BufferSize = 1024 * 4;
+                //client.OnReceivedEvent += Client_OnReceivedEvent1;
                 client.Connect("127.0.0.1", 2991);
 
-                //while (true)-
+                list.Add(client);
+            }
+            {
+                var random = new Random();
+                while (true)
                 {
-                    {
-                        var data = new byte[1024 * 1024];
-                        var value = BitConverter.GetBytes(10000);
-                        Array.Copy(value, data, 4);
-                        data[data.Length - 1] = 2;
-                        client.Send(data);
-                    }
-
-                    for (int i = 0; i < 10000; i++)
-                    {
-                        Thread.Sleep(100);
-                        var data = new byte[1024 * 2];
-                        var value = BitConverter.GetBytes(i);
-                        Array.Copy(value, data, 4);
-                        data[data.Length - 1] = 2;
-                        client.Send(data);
-                        //client.Send(BitConverter.GetBytes(i));
-                    }
+                    var index = random.Next(list.Count - 1);
+                    var value = BitConverter.GetBytes(index);
+                    list[index].Send(value);
                 }
+
+
+
+
+                ////while (true)-
+                //{
+                //    {
+                //        var data = new byte[1024 * 1024];
+                //        var value = BitConverter.GetBytes(10000);
+                //        Array.Copy(value, data, 4);
+                //        data[data.Length - 1] = 2;
+                //        client.Send(data);
+                //    }
+
+                //    for (int i = 0; i < 10000; i++)
+                //    {
+                //        //Thread.Sleep(100);
+                //        var data = new byte[1024 * 1024];
+                //        var value = BitConverter.GetBytes(i);
+                //        Array.Copy(value, data, 4);
+                //        data[data.Length - 1] = 2;
+                //        client.Send(data);
+                //        //client.Send(BitConverter.GetBytes(i));
+                //    }
+                //}
             }
 
 
             Console.WriteLine($"成功:{successCount} 失败{errorCount}");
             Console.ReadLine();
         }
+
+        private static void Client_OnReceivedEvent1(DataReceivedArgs obj)
+        {
+            Console.WriteLine(BitConverter.ToInt32(obj.Data, 0) + "  " + obj.Data[obj.Data.Length - 1]);
+        }
+
         private static uint sequenceId = 1;
         private static byte[] GetSendData()
         {

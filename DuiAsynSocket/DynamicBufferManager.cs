@@ -37,7 +37,12 @@ namespace DuiAsynSocket
         private int ReserveLenght { get { return _buff.Length - _offset - _lenght; } }
 
         private readonly object _objLock = new object();
-
+        /// <summary>
+        /// 写入数据到动态缓存中
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="offset"></param>
+        /// <param name="count"></param>
         private void WriteBuffer(byte[] buffer, int offset, int count)
         {
             lock (_objLock)
@@ -62,7 +67,10 @@ namespace DuiAsynSocket
                 _lenght += count;
             }
         }
-
+        /// <summary>
+        /// 写入数据到动态缓存中
+        /// </summary>
+        /// <param name="buffer"></param>
         private void WriteBuffer(byte[] buffer)
         {
             WriteBuffer(buffer, 0, buffer.Length);
@@ -163,7 +171,13 @@ namespace DuiAsynSocket
                 _hashTable.Remove(sessionId);
             }
         }
-
+        /// <summary>
+        /// 写入数据到动态缓存中
+        /// </summary>
+        /// <param name="sessionId"></param>
+        /// <param name="buffer"></param>
+        /// <param name="offset"></param>
+        /// <param name="count"></param>
         public static void WriteBuffer(string sessionId, byte[] buffer, int offset, int count)
         {
             DynamicBufferManager buffManager = null;
@@ -176,11 +190,20 @@ namespace DuiAsynSocket
                 buffManager = _hashTable[sessionId] as DynamicBufferManager;
             buffManager.WriteBuffer(buffer, offset, count);
         }
-
+        /// <summary>
+        /// 写入数据到动态缓存中
+        /// </summary>
+        /// <param name="sessionId"></param>
+        /// <param name="buffer"></param>
         public static void WriteBuffer(string sessionId, byte[] buffer)
         {
             WriteBuffer(sessionId, buffer, 0, buffer.Length);
         }
+        /// <summary>
+        /// 弹出所有已组装好的数据
+        /// </summary>
+        /// <param name="sessionId"></param>
+        /// <returns></returns>
         public static List<byte[]> PopPackets(string sessionId)
         {
             if (_hashTable.ContainsKey(sessionId))

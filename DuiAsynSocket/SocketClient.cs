@@ -18,9 +18,14 @@ namespace DuiAsynSocket
 
         #region Properties
 
-        private int _bufferSize = 1024;
         /// <summary>
-        /// socket收发缓存大小
+        /// 是否使用心跳验证,启用后发送的第一个报文为验证报文
+        /// </summary>
+        public bool IsUseHeartBeatCertificate { get; set; } = false;
+
+        private int _bufferSize = 1024 * 4;
+        /// <summary>
+        /// socket收发缓存大小,默认4k
         /// </summary>
         public int BufferSize
         {
@@ -135,7 +140,14 @@ namespace DuiAsynSocket
             {
                 if (Environment.TickCount - _lastExchangeTime > time)
                 {
-                    Send(HeartBeatsData);
+                    if (IsUseHeartBeatCertificate)
+                    {
+                        SendHeartBeatsValidData();
+                    }
+                    else
+                    {
+                        Send(HeartBeatsData);
+                    }
                 }
             };
             _heartBeatsTimer.Start();
@@ -143,6 +155,14 @@ namespace DuiAsynSocket
         #endregion
 
         #region Methods
+        /// <summary>
+        /// 发送心跳验证数据
+        /// </summary>
+        private void SendHeartBeatsValidData()
+        {
+            byte[] bytes = UTF8Encoding.UTF8.GetBytes(DateTime.Now.ToString("yyyy-MM-dd HH:mm"));
+            Send(bytes);
+        }
 
         /// <summary>
         /// Connect to the host.
@@ -159,7 +179,8 @@ namespace DuiAsynSocket
                 _socket.Connect(list[list.Length - 1], port);
                 if (_socket.Connected)
                 {
-                    ConnStatus = ConnectStatus.Connected;
+                    if (IsUseHeartBeatCertificate)
+                        SendHeartBeatsValidData();
                     ProcessConnect();
                 }
             }
@@ -429,6 +450,7 @@ namespace DuiAsynSocket
                 this._socket.Close();
             }
             this.ConnStatus = ConnectStatus.Closed;
+            DynamicBufferManager.Remove(_sessionId);
         }
 
         #endregion
