@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -16,9 +18,14 @@ namespace DuiAsynSocket
 
         #region Properties
 
-        private int _bufferSize = 1024;
         /// <summary>
-        /// socket收发缓存大小
+        /// 是否使用心跳验证,启用后发送的第一个报文为验证报文
+        /// </summary>
+        public bool IsUseHeartBeatCertificate { get; set; } = false;
+
+        private int _bufferSize = 1024 * 4;
+        /// <summary>
+        /// socket收发缓存大小,默认4k
         /// </summary>
         public int BufferSize
         {
@@ -48,21 +55,11 @@ namespace DuiAsynSocket
             }
         }
 
-        private ConnectStatus _connStatus;
-
-        public ConnectStatus ConnStatus
+        public bool IsConnected
         {
-            private set
-            {
-                if (_connStatus != value)
-                {
-                    _connStatus = value;
-                    RaiseOnConnChange(new ConnStatusChangeArgs(value));
-                }
-            }
             get
             {
-                return _connStatus;
+                return Socket == null ? false : Socket.Connected;
             }
         }
 
@@ -91,10 +88,10 @@ namespace DuiAsynSocket
         #endregion
 
         #region HeartBeats
-        private int _heartBeatSpan = 120;
+        private int _heartBeatSpan = 60;
         private System.Timers.Timer _heartBeatsTimer;
         /// <summary>
-        /// 心跳时间(s)最低设置30s，默认3分钟
+        /// 心跳时间(s)最低设置30s，默认1分钟
         /// </summary>
         public int HeartBeatSpan
         {
@@ -114,18 +111,25 @@ namespace DuiAsynSocket
         /// 是否开启心跳,连接前设置
         /// </summary>
         public bool HeartBeatsEnable { get; set; } = true;
-        public byte[] HeartBeatsData { get; set; } = Encoding.UTF8.GetBytes("HeartBeats");
+        /// <summary>
+        /// 是否把网络字节顺序转为本地字节顺序
+        /// </summary>
+        public bool NetByteOrder { get; set; }
+        /// <summary>
+        /// 上次数据交换时间
+        /// </summary>
         private int _lastExchangeTime = Environment.TickCount;
         private void InitHeartBeatsTimer()
         {
             if (HeartBeatsEnable == false)
                 return;
             _heartBeatsTimer = new System.Timers.Timer(3 * 1000);
+            var time = HeartBeatSpan * 1000;
             _heartBeatsTimer.Elapsed += (s, e) =>
             {
-                if (Environment.TickCount - _lastExchangeTime > HeartBeatSpan * 1000)
+                if (Environment.TickCount - _lastExchangeTime > time)
                 {
-                    Send(HeartBeatsData);
+                    SendHeartBeatsValidData();
                 }
             };
             _heartBeatsTimer.Start();
@@ -133,6 +137,14 @@ namespace DuiAsynSocket
         #endregion
 
         #region Methods
+        /// <summary>
+        /// 发送心跳验证数据
+        /// </summary>
+        private void SendHeartBeatsValidData()
+        {
+            byte[] bytes = UTF8Encoding.UTF8.GetBytes(DateTime.Now.ToString("yyyy-MM-dd HH:mm"));
+            Send(bytes);
+        }
 
         /// <summary>
         /// Connect to the host.
@@ -140,20 +152,23 @@ namespace DuiAsynSocket
         /// <returns>True if connection has succeded, else false.</returns>
         public void Connect(string hostName, int port)
         {
-            _connStatus = ConnectStatus.Created;
             try
             {
                 _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                _socket.Connect(new IPEndPoint(IPAddress.Parse(hostName), port));
+                //_socket.Connect(new IPEndPoint(IPAddress.Parse(hostName), port));
+                var list = Dns.GetHostAddresses(hostName);
+                _socket.Connect(list[list.Length - 1], port);
                 if (_socket.Connected)
                 {
-                    ConnStatus = ConnectStatus.Connected;
+                    if (IsUseHeartBeatCertificate)
+                        SendHeartBeatsValidData();
                     ProcessConnect();
                 }
             }
             catch (Exception ex)
             {
-                ConnStatus = ConnectStatus.Fault;
+                RaiseOnConnChange(new ConnStatusChangeArgs(false));
+                Trace.WriteLine(ex.Message);
             }
         }
         private void OnIOComplete(object sender, SocketAsyncEventArgs e)
@@ -186,21 +201,71 @@ namespace DuiAsynSocket
                 this.ProcessError(e);
             }
         }
+
+        private List<byte> _list = new List<byte>();
+
+        private string _sessionId = Guid.NewGuid().ToString();
+
+        /// <summary>
+        /// 是否分包标识，每次数据发送和接收的前4个字节代表数据长度
+        /// </summary>
+        public bool IsSplitPack = true;
         private void ProcessReceive(SocketAsyncEventArgs e)
         {
-            if (e.SocketError == SocketError.Success)
+            try
             {
-                var data = new byte[e.BytesTransferred];
-                Array.Copy(e.Buffer, e.Offset, data, 0, e.BytesTransferred);
-                RaiseOnReceive(new DataReceivedArgs(data));
-
-                if (_socket.ReceiveAsync(e) == false)
+                if (e.SocketError == SocketError.Success)
                 {
-                    ProcessReceive(e);
+                    if (IsSplitPack)
+                    {
+                        DynamicBufferManager.WriteBuffer(_sessionId, e.Buffer, e.Offset, e.BytesTransferred);
+                        var list = DynamicBufferManager.PopPackets(_sessionId);
+                        foreach (var item in list)
+                        {
+                            RaiseOnReceive(new DataReceivedArgs(_sessionId, item));
+                        }
+
+                        //int index = 0;
+                        //while (index < data.Length - 4)
+                        //{
+                        //    var lenght = BitConverter.ToInt32(data, index);
+
+                        //    if (NetByteOrder)
+                        //        lenght = System.Net.IPAddress.NetworkToHostOrder(lenght); //把网络字节顺序转为本地字节顺序
+
+                        //    if (lenght > 0 && index + lenght + 4 <= data.Length)
+                        //    {
+                        //        var splitData = new byte[lenght];
+                        //        Array.Copy(data, index + 4, splitData, 0, lenght);
+                        //        index = index + lenght + 4;
+                        //        RaiseOnReceive(new DataReceivedArgs(splitData));
+                        //    }
+                        //    else
+                        //    {
+                        //        break;
+                        //    }
+                        //}
+                    }
+                    else
+                    {
+                        var data = new byte[e.BytesTransferred];
+                        Array.Copy(e.Buffer, e.Offset, data, 0, e.BytesTransferred);
+                        RaiseOnReceive(new DataReceivedArgs(data));
+                    }
+
+                    if (_socket.ReceiveAsync(e) == false)
+                    {
+                        ProcessReceive(e);
+                    }
+                }
+                else
+                {
+                    this.ProcessError(e);
                 }
             }
-            else
+            catch (Exception)
             {
+
                 this.ProcessError(e);
             }
         }
@@ -230,7 +295,7 @@ namespace DuiAsynSocket
                     }
                 }
             }
-            ConnStatus = ConnectStatus.Fault;
+            RaiseOnConnChange(new ConnStatusChangeArgs(false));
         }
         private void ProcessConnect()
         {
@@ -241,7 +306,7 @@ namespace DuiAsynSocket
             if (_socket.ReceiveAsync(so) == false)
                 ProcessReceive(so);
 
-            ConnStatus = ConnectStatus.Connected;
+            RaiseOnConnChange(new ConnStatusChangeArgs(true));
             InitHeartBeatsTimer();
         }
 
@@ -290,41 +355,7 @@ namespace DuiAsynSocket
             }
         }
 
-        #region 发送数据
-
-        /// <summary>
-        /// <summary>
-        /// 异步的发送数据
-        /// </summary>
-        /// <param name="e"></param>
-        /// <param name="data"></param>
-        //public void SendAsyn(byte[] data)
-        //{
-        //    if (so != null)
-        //    {
-        //        var e = so;
-        //        if (e.SocketError == SocketError.Success)
-        //        {
-        //            Socket s = _socket;//和客户端关联的socket
-        //            if (s.Connected)
-        //            {
-        //                Array.Copy(data, 0, e.Buffer, 0, data.Length);//设置发送数据
-
-        //                e.SetBuffer(data, 0, data.Length); //设置发送数据
-        //                if (!s.SendAsync(e))//投递发送请求，这个函数有可能同步发送出去，这时返回false，并且不会引发SocketAsyncEventArgs.Completed事件
-        //                {
-        //                    // 同步发送时处理发送完成事件
-        //                    //ProcessSend(e);
-        //                }
-        //                else
-        //                {
-        //                    //CloseClientSocket(e);
-        //                }
-        //            }
-        //        }
-        //    }
-        //}
-
+        #region 发送数据    
         /// <summary>
         /// 同步发送数据
         /// </summary>
@@ -336,54 +367,49 @@ namespace DuiAsynSocket
         {
             _lastExchangeTime = Environment.TickCount;
 
-            int sent = 0; // how many bytes is already sent
+            int sent = 0;
             if (_socket != null && _socket.Connected)
             {
                 var socket = _socket;
-                socket.SendTimeout = 0;
-                int startTickCount = Environment.TickCount;
-                //使用do while后期可改造大数据分多次发送
-                do
+                socket.SendTimeout = timeout;
+                try
                 {
-                    if (timeout > 0 && (Environment.TickCount > startTickCount + timeout))
+                    if (IsSplitPack)
                     {
-                        return sent;
+                        var lenght = data.Length;
+                        var list = new List<byte>(BitConverter.GetBytes(lenght));
+                        list.AddRange(data);
+                        sent += socket.Send(list.ToArray());
                     }
-                    try
+                    else
                     {
-                        //sent += socket.Send(data, sent, data.Length, SocketFlags.None);
                         sent += socket.Send(data);
-                        break;
                     }
-                    catch (SocketException ex)
+                }
+                catch (SocketException ex)
+                {
+                    if (ex.SocketErrorCode == SocketError.WouldBlock ||
+                    ex.SocketErrorCode == SocketError.IOPending ||
+                    ex.SocketErrorCode == SocketError.NoBufferSpaceAvailable)
                     {
-                        if (ex.SocketErrorCode == SocketError.WouldBlock ||
-                        ex.SocketErrorCode == SocketError.IOPending ||
-                        ex.SocketErrorCode == SocketError.NoBufferSpaceAvailable)
-                        {
-                            // socket buffer is probably full, wait and try again
-                            Thread.Sleep(30);
-                        }
-                        else
-                        {
-                            ConnStatus = ConnectStatus.Fault;
-                            break; // any serious error occurr
-                        }
+                        // socket buffer is probably full, wait and try again
+                        Thread.Sleep(30);
                     }
-                } while (true);
+                    else
+                    {
+                        //IsConnected = false;
+                    }
+                }
+            }
+            else
+            {
+                //IsConnected = false;
             }
             return sent;
         }
 
         #endregion
 
-        /// <summary>
-        /// Disconnect from the host.
-        /// </summary>
-        public void Disconnect()
-        {
-            _socket.Disconnect(false);
-        }
         #endregion
 
         #region IDisposable Members
@@ -393,11 +419,20 @@ namespace DuiAsynSocket
         /// </summary>
         public void Dispose()
         {
-            if (this._socket.Connected)
+            try
             {
-                this._socket.Close();
+                if (_heartBeatsTimer != null)
+                {
+                    _heartBeatsTimer.Dispose();
+                    _heartBeatsTimer = null;
+                }
+                DynamicBufferManager.Remove(_sessionId);
+                _socket?.Disconnect(false);
             }
-            this.ConnStatus = ConnectStatus.Closed;
+            catch (Exception)
+            {
+
+            }
         }
 
         #endregion

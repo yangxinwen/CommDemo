@@ -13,60 +13,58 @@ namespace Service
     {
         static void Main(string[] args)
         {
-            TestService();
 
+            var p = new Program();
+            p.Start("127.0.0.1", 1568);
             Console.ReadLine();
         }
 
-        static SocketListener service = null;
-        private static void TestService()
+        SocketListener _serviceListener = null;
+
+        /// <summary>
+        /// 开启AsyncSocketService 监听,指定IP
+        /// </summary>
+        /// <param name="ip"></param>
+        /// <param name="port"></param>
+        public void Start(string ip, int port)
         {
-            service = new SocketListener(1000, 1024*1024);
-            service.Start(2991);
-            service.OnReceived += Service_OnReceivedEvent;
-            service.OnClientConnChange += Service_OnClientConnChangeEvent;
+            try
+            {
+                IPAddress ipaddress = null;
+                if (IPAddress.TryParse(ip, out ipaddress) == false)
+                    ipaddress = IPAddress.Any;
 
-            var sendData = UTF8Encoding.UTF8.GetBytes("服务端发送");
+                _serviceListener = new SocketListener(3000, 1024 * 4);
 
 
-            //while (true)
-            //{
-            //    var i = 1;
-            //    Thread.Sleep(10 * 1000);
+                _serviceListener.SocketTimeOutMS = 60 * 1000;
+                IPEndPoint listenPoint = new IPEndPoint(ipaddress, port);
+                _serviceListener.OnClientConnChange += _serviceListener_OnClientConnChange; ;
+                _serviceListener.OnReceived += _serviceListener_OnReceived; ;
+                _serviceListener.OnServiceStatusChange += _serviceListener_OnServiceStatusChange;
 
-            //    foreach (var item in service.GetClients())
-            //    {
-            //        service.Send(item, UTF8Encoding.UTF8.GetBytes($"{i++}服务端发送"));
-            //    }
-            //}
+                _serviceListener.OnDisplayLog = (s) => { Console.WriteLine(s); };
+                _serviceListener.OnDisplayExceptionLog = (s) => { Console.WriteLine(s); };
 
-            //service.Stop();
+                _serviceListener.Start(listenPoint);
+
+            }
+            catch (Exception ex)
+            {
+            }
         }
 
-        private static void Service_OnClientConnChangeEvent(ConnStatusChangeArgs obj)
+        private void _serviceListener_OnServiceStatusChange(ConnStatusChangeArgs obj)
         {
-            if (obj.ConnStatus == ConnectStatus.Connected)
-                successCount++;
-            else if (obj.ConnStatus == ConnectStatus.Closed)
-                errorCount++;
-            Console.WriteLine($"接入:{successCount}   关闭:{errorCount}");
+
         }
 
-        private static int successCount = 0;
-
-        private static int errorCount = 0;
-
-        private static void Service_OnReceivedEvent(DataReceivedArgs obj)
+        private void _serviceListener_OnReceived(DataReceivedArgs obj)
         {
-            var model = ExchangeData.ParseFrom(obj.Data);
-            Console.WriteLine($"data: {model.SequenceId} {model.MessageType} {model.IsRequest} {model.JsonBody}");
-            service.Send(obj.SessionId, obj.Data);
         }
 
-        private static void Service_DataReceived(byte[] obj)
+        private void _serviceListener_OnClientConnChange(ConnStatusChangeArgs obj)
         {
-            Console.WriteLine(UTF8Encoding.UTF8.GetString(obj));
-
 
         }
     }

@@ -9,29 +9,38 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Service", "Service\Service.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DuiAsynSocket", "DuiAsynSocket\DuiAsynSocket.csproj", "{5FFE844E-4674-4A69-9F18-2122C5C27BC8}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "dll", "dll", "{8ACB951E-52F1-49AE-8364-4B73B04E1424}"
-	ProjectSection(SolutionItems) = preProject
-		Dll\Google.ProtocolBuffers.dll = Dll\Google.ProtocolBuffers.dll
-	EndProjectSection
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
+		Debug|x86 = Debug|x86
 		Release|Any CPU = Release|Any CPU
+		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{120662F5-7281-4D31-ABF1-98C3C73F954D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{120662F5-7281-4D31-ABF1-98C3C73F954D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{120662F5-7281-4D31-ABF1-98C3C73F954D}.Debug|Any CPU.ActiveCfg = Debug|x86
+		{120662F5-7281-4D31-ABF1-98C3C73F954D}.Debug|Any CPU.Build.0 = Debug|x86
+		{120662F5-7281-4D31-ABF1-98C3C73F954D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{120662F5-7281-4D31-ABF1-98C3C73F954D}.Debug|x86.Build.0 = Debug|Any CPU
 		{120662F5-7281-4D31-ABF1-98C3C73F954D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{120662F5-7281-4D31-ABF1-98C3C73F954D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{120662F5-7281-4D31-ABF1-98C3C73F954D}.Release|x86.ActiveCfg = Release|Any CPU
+		{120662F5-7281-4D31-ABF1-98C3C73F954D}.Release|x86.Build.0 = Release|Any CPU
 		{1ABD42AE-EE1F-43A2-8891-54C77CD37924}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{1ABD42AE-EE1F-43A2-8891-54C77CD37924}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1ABD42AE-EE1F-43A2-8891-54C77CD37924}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{1ABD42AE-EE1F-43A2-8891-54C77CD37924}.Debug|x86.Build.0 = Debug|Any CPU
 		{1ABD42AE-EE1F-43A2-8891-54C77CD37924}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1ABD42AE-EE1F-43A2-8891-54C77CD37924}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1ABD42AE-EE1F-43A2-8891-54C77CD37924}.Release|x86.ActiveCfg = Release|Any CPU
+		{1ABD42AE-EE1F-43A2-8891-54C77CD37924}.Release|x86.Build.0 = Release|Any CPU
 		{5FFE844E-4674-4A69-9F18-2122C5C27BC8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{5FFE844E-4674-4A69-9F18-2122C5C27BC8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5FFE844E-4674-4A69-9F18-2122C5C27BC8}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{5FFE844E-4674-4A69-9F18-2122C5C27BC8}.Debug|x86.Build.0 = Debug|Any CPU
 		{5FFE844E-4674-4A69-9F18-2122C5C27BC8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5FFE844E-4674-4A69-9F18-2122C5C27BC8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5FFE844E-4674-4A69-9F18-2122C5C27BC8}.Release|x86.ActiveCfg = Release|Any CPU
+		{5FFE844E-4674-4A69-9F18-2122C5C27BC8}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

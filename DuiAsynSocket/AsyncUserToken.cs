@@ -14,18 +14,20 @@ namespace DuiAsynSocket
         public SocketAsyncEventArgs AsynSocketArgs { get; set; }
         public Socket Socket { get; private set; }
 
+        /// <summary>
+        /// 是否通过了验证
+        /// </summary>
+        public bool IsCertified { get; set; }
+
+        /// <summary>
+        /// 上次数据交换时间
+        /// </summary>
+        public int LastExchangeTime { get; set; } = Environment.TickCount;
+
         public string SessionId
         {
             get; set;
-            //get
-            //{
-            //    if (Socket != null)
-            //        return Socket.Handle.ToString();
-            //    else
-            //        return string.Empty;
-            //}
         }
-
         public AsyncUserToken(SocketAsyncEventArgs args)
         {
             AsynSocketArgs = args;

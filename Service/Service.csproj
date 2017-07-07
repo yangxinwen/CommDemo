@@ -32,9 +32,6 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Google.ProtocolBuffers">
-      <HintPath>..\Dll\Google.ProtocolBuffers.dll</HintPath>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
@@ -44,13 +41,12 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Model.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DuiAsynSocket\DuiAsynSocket.csproj">
-      <Project>{5ffe844e-4674-4a69-9f18-2122c5c27bc8}</Project>
+      <Project>{5FFE844E-4674-4A69-9F18-2122C5C27BC8}</Project>
       <Name>DuiAsynSocket</Name>
     </ProjectReference>
   </ItemGroup>
