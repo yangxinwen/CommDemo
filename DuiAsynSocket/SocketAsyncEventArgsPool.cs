@@ -47,7 +47,7 @@ namespace DuiAsynSocket
                 }
                 else
                 {
-                    return null;
+                    return new SocketAsyncEventArgs();
                 }
             }
         }
@@ -58,10 +58,6 @@ namespace DuiAsynSocket
         /// <param name="item">SocketAsyncEventArgs instance to add to the pool.</param>
         internal void Push(SocketAsyncEventArgs item)
         {
-            if (item == null)
-            {
-                throw new ArgumentNullException("Items added to a SocketAsyncEventArgsPool cannot be null");
-            }
             lock (this.pool)
             {
                 this.pool.Push(item);
@@ -80,7 +76,7 @@ namespace DuiAsynSocket
                     if (args != null)
                     {
                         args.SetBuffer(null, 0, 0);
-                        args=null;
+                        args = null;
                     }
                 }
             }

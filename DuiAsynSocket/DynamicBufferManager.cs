@@ -120,6 +120,10 @@ namespace DuiAsynSocket
                     {
                         OnDisplayLog?.Invoke($"DynamicBufferManager:收到一个异常数据报文,已重置缓存数据，长度:{packLenght}");
 
+                        //重置有效数据前处理所有内存中的数据
+                        var data = new byte[_lenght];
+                        Array.Copy(_buff, _offset, data, 0, _lenght);
+                        list.Add(data);
                         //重置有效数据游标
                         _offset = 0;
                         _lenght = 0;

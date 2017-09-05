@@ -35,11 +35,6 @@ namespace DuiAsynSocket
         /// Pool of reusable SocketAsyncEventArgs objects for write, read and accept socket operations.
         /// </summary>
         private SocketAsyncEventArgsPool readWritePool;
-
-        /// <summary>
-        /// Controls the total number of clients connected to the server.
-        /// </summary>
-        private Semaphore semaphoreAcceptedClients;
         /// <summary>
         /// 存储sessionid和用户socket数据
         /// </summary>
@@ -146,8 +141,6 @@ namespace DuiAsynSocket
             this.bufferSize = bufferSize;
 
             this.readWritePool = new SocketAsyncEventArgsPool(numConnections);
-            this.semaphoreAcceptedClients = new Semaphore(numConnections, numConnections + 1);
-
             // Preallocate pool of SocketAsyncEventArgs objects.
             for (var i = 0; i < this._maxConnCount; i++)
             {
@@ -170,6 +163,25 @@ namespace DuiAsynSocket
                     Thread.Sleep(60000);
                     try
                     {
+                        //控制自动恢复接收新的连接，防止队列满了后会出现不能接收新连接的问题
+                        if (_isAccepting == false)
+                        {
+                            if (_clients.Count < MaxConnCount)
+                            {
+                                try
+                                {
+                                    StartAccept();
+                                }
+                                catch (Exception ex)
+                                {
+                                    ShowLog("恢复接收新连接错误:" + ex.Message);
+                                }
+                            }
+
+                        }
+
+
+                        //StartAccept(_acceptEventArg);
                         if (SocketTimeOutMS <= 0)
                             continue;
 
@@ -239,20 +251,28 @@ namespace DuiAsynSocket
             }
 
             // Start the server.
-            //启动服务，空余100个空闲的连接防止端口连接满了后之后都不接收连接的问题
-            this.listenSocket.Listen(this._maxConnCount + 50);
+            this.listenSocket.Listen(518);
 
             IsListening = true;
 
             // Post accepts on the listening socket.
-            this.StartAccept(null);
-
+            if (_acceptEventArg == null)
+            {
+                _acceptEventArg = new SocketAsyncEventArgs();
+                _acceptEventArg.Completed += new EventHandler<SocketAsyncEventArgs>(OnAcceptCompleted);
+            }
+            this.StartAccept();
             KillOutTimeSocket();
 
             //设置动态缓存管理的日志显示委托方法
             if (DynamicBufferManager.OnDisplayLog == null && this.OnDisplayLog != null)
                 DynamicBufferManager.OnDisplayLog = this.OnDisplayLog;
         }
+
+        /// <summary>
+        /// 是否在等待接收新连接，控制自动恢复接收新的连接，防止队列满了后会出现不能接收新连接的问题
+        /// </summary>
+        private bool _isAccepting = false;
 
         /// <summary>
         /// Callback method associated with Socket.AcceptAsync 
@@ -262,39 +282,33 @@ namespace DuiAsynSocket
         /// <param name="e">SocketAsyncEventArg associated with the completed accept operation.</param>
         private void OnAcceptCompleted(object sender, SocketAsyncEventArgs e)
         {
-            this.ProcessAccept(e);
+            try
+            {
+                Trace.WriteLine("accepted");
+                _isAccepting = false;
+                this.ProcessAccept(e);
+            }
+            catch (Exception ex)
+            {
+                ShowLog(ex);
+            }
         }
+
+
 
         /// <summary>
         /// Begins an operation to accept a connection request from the client.
         /// </summary>
         /// <param name="acceptEventArg">The context object to use when issuing 
         /// the accept operation on the server's listening socket.</param>
-        private void StartAccept(SocketAsyncEventArgs acceptEventArg)
+        private void StartAccept()
         {
-            if (acceptEventArg == null)
+            _acceptEventArg.AcceptSocket = null;
+            Trace.WriteLine("accepting");
+            _isAccepting = true;
+            if (!this.listenSocket.AcceptAsync(_acceptEventArg))
             {
-                acceptEventArg = new SocketAsyncEventArgs();
-                acceptEventArg.Completed += new EventHandler<SocketAsyncEventArgs>(OnAcceptCompleted);
-            }
-            else
-            {
-                //超过最大的连接之后的连接都直接断开，直到有多余的才放开,可解决连接达到上限后即使下线端口也不在接收新的连接的问题
-                if (_clients.Count >= _maxConnCount)
-                {
-                    if (acceptEventArg.AcceptSocket != null && acceptEventArg.AcceptSocket.Connected)
-                    {
-                        acceptEventArg.AcceptSocket.Close();
-                    }
-                }
-                // Socket must be cleared since the context object is being reused.
-                acceptEventArg.AcceptSocket = null;
-            }
-
-            this.semaphoreAcceptedClients.WaitOne();
-            if (!this.listenSocket.AcceptAsync(acceptEventArg))
-            {
-                this.ProcessAccept(acceptEventArg);
+                this.ProcessAccept(_acceptEventArg);
             }
         }
 
@@ -305,19 +319,29 @@ namespace DuiAsynSocket
         /// <param name="e">SocketAsyncEventArg associated with the completed send/receive operation.</param>
         private void OnIOCompleted(object sender, SocketAsyncEventArgs e)
         {
-            // Determine which type of operation just completed and call the associated handler.
-            switch (e.LastOperation)
+            try
             {
-                case SocketAsyncOperation.Receive:
-                    this.ProcessReceive(e);
-                    break;
-                case SocketAsyncOperation.Send:
-                    this.ProcessSend(e);
-                    break;
-                default:
-                    throw new ArgumentException("The last operation completed on the socket was not a receive or send");
+                // Determine which type of operation just completed and call the associated handler.
+                switch (e.LastOperation)
+                {
+                    case SocketAsyncOperation.Receive:
+                        this.ProcessReceive(e);
+                        break;
+                    case SocketAsyncOperation.Send:
+                        this.ProcessSend(e);
+                        break;
+                    default:
+                        throw new ArgumentException("The last operation completed on the socket was not a receive or send");
+                }
+
+            }
+            catch (Exception ex)
+            {
+                ShowLog(ex);
             }
         }
+
+        private SocketAsyncEventArgs _acceptEventArg = null;
 
         /// <summary>
         /// Process the accept for the socket listener.
@@ -325,52 +349,66 @@ namespace DuiAsynSocket
         /// <param name="e">SocketAsyncEventArg associated with the completed accept operation.</param>
         private void ProcessAccept(SocketAsyncEventArgs e)
         {
-            Socket s = e.AcceptSocket;
-            if (s.Connected)
+            try
             {
-                try
+                Socket s = e.AcceptSocket;
+                if (s != null && s.Connected)
                 {
-                    SocketAsyncEventArgs readEventArgs = this.readWritePool.Pop();
-                    if (readEventArgs != null)
+                    try
                     {
-                        // Get the socket for the accepted client connection and put it into the 
-                        // ReadEventArg object user token.
-                        var token = new AsyncUserToken(e);
-                        readEventArgs.UserToken = token;
-                        if (readEventArgs.Buffer == null)
-                            readEventArgs.SetBuffer(new Byte[this.bufferSize], 0, this.bufferSize);
-                        //添加到客户列表
-                        AddClient(token.SessionId, token);
-
-                        if (!s.ReceiveAsync(readEventArgs))
+                        SocketAsyncEventArgs readEventArgs = this.readWritePool.Pop();
+                        if (readEventArgs != null)
                         {
-                            this.ProcessReceive(readEventArgs);
+                            // Get the socket for the accepted client connection and put it into the 
+                            // ReadEventArg object user token.
+                            var token = new AsyncUserToken(e);
+                            readEventArgs.UserToken = token;
+                            if (readEventArgs.Buffer == null)
+                                readEventArgs.SetBuffer(new Byte[this.bufferSize], 0, this.bufferSize);
+                            //添加到客户列表
+                            AddClient(token.SessionId, token);
+
+                            if (!s.ReceiveAsync(readEventArgs))
+                            {
+                                this.ProcessReceive(readEventArgs);
+                            }
+                        }
+                        else
+                        {
+                            ShowLog("There are no more available sockets to allocate.");
                         }
                     }
-                    else
+                    catch (SocketException ex)
                     {
-                        ShowLog("There are no more available sockets to allocate.");
+                        AsyncUserToken token = e.UserToken as AsyncUserToken;
+                        ShowLog(string.Format("Error when processing data received from {0}:\r\n{1}", token.Socket.RemoteEndPoint, ex.ToString()));
+                    }
+                    catch (Exception ex)
+                    {
+                        ShowLog(ex);
                     }
                 }
-                catch (SocketException ex)
-                {
-                    AsyncUserToken token = e.UserToken as AsyncUserToken;
-                    ShowLog(string.Format("Error when processing data received from {0}:\r\n{1}", token.Socket.RemoteEndPoint, ex.ToString()));
-                }
-                catch (Exception ex)
-                {
-                    ShowLog(ex);
-                }
+                else
+                    StartAccept();
 
-                // Accept the next connection request.
-                this.StartAccept(e);
+            }
+            catch (Exception ex)
+            {
+                ShowLog(ex);
             }
         }
 
         private void ProcessError(SocketAsyncEventArgs e)
         {
-            AsyncUserToken token = e.UserToken as AsyncUserToken;
-            this.CloseClient(token);
+            try
+            {
+                AsyncUserToken token = e.UserToken as AsyncUserToken;
+                this.CloseClient(token);
+            }
+            catch (Exception ex)
+            {
+                ShowLog(ex);
+            }
         }
 
         /// <summary>
@@ -498,10 +536,13 @@ namespace DuiAsynSocket
                             RaiseOnReceive(new DataReceivedArgs(token.SessionId, data));
                         }
 
-                        if (!token.Socket.ReceiveAsync(e))
+                        if (token.Socket.Connected)
                         {
-                            // Read the next block of data sent by client.
-                            this.ProcessReceive(e);
+                            if (!token.Socket.ReceiveAsync(e))
+                            {
+                                // Read the next block of data sent by client.
+                                this.ProcessReceive(e);
+                            }
                         }
                     }
                     else
@@ -526,6 +567,8 @@ namespace DuiAsynSocket
             lock (_clients.SyncRoot)
             {
                 _clients.Add(sessionId, token);
+                if (_clients.Count < MaxConnCount)
+                    StartAccept();
             }
             ShowLog($"{token.Socket?.RemoteEndPoint?.ToString()} 连接成功");
             RaiseOnClientConnChange(new ConnStatusChangeArgs(sessionId, true));
@@ -534,7 +577,12 @@ namespace DuiAsynSocket
         {
             lock (_clients.SyncRoot)
             {
-                _clients.Remove(sessionId);
+                if (_clients.ContainsKey(sessionId))
+                {
+                    _clients.Remove(sessionId);
+                    if (_clients.Count == MaxConnCount - 1)
+                        StartAccept();
+                }
             }
             RaiseOnClientConnChange(new ConnStatusChangeArgs(sessionId, false));
         }
@@ -689,22 +737,22 @@ namespace DuiAsynSocket
             {
                 if (token == null || _clients.ContainsKey(token.SessionId) == false)
                     return;
-
-                DynamicBufferManager.Remove(token.SessionId);
-
-                var args = token.AsynSocketArgs;
-
-                ShowLog($"{token.Socket?.RemoteEndPoint?.ToString()} 连接已关闭");
-                RemoveClient(token.SessionId);
-
-                token.Dispose();
-                if (IsListening)
+                try
                 {
-                    // Decrement the counter keeping track of the total number of clients connected to the server.
-                    this.semaphoreAcceptedClients.Release();
+                    DynamicBufferManager.Remove(token.SessionId);
+                    var args = token.AsynSocketArgs;
+                    //释放资源
+                    //this.semaphoreAcceptedClients.Release();
+                    //回收到pool中
+                    this.readWritePool.Push(args);
+                    RemoveClient(token.SessionId);
+                    ShowLog($"{token.Socket?.RemoteEndPoint?.ToString()} 连接已关闭");
+                    token.Dispose();
                 }
-                // Free the SocketAsyncEventArg so they can be reused by another client.
-                this.readWritePool.Push(args);
+                catch (Exception)
+                {
+
+                }
             }
         }
 

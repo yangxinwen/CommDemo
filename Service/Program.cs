@@ -15,7 +15,7 @@ namespace Service
         {
 
             var p = new Program();
-            p.Start("127.0.0.1", 1568);
+            p.Start("", 1568);
             Console.ReadLine();
         }
 
@@ -34,10 +34,10 @@ namespace Service
                 if (IPAddress.TryParse(ip, out ipaddress) == false)
                     ipaddress = IPAddress.Any;
 
-                _serviceListener = new SocketListener(3000, 1024 * 4);
+                _serviceListener = new SocketListener(1000, 1024 * 4);
 
 
-                _serviceListener.SocketTimeOutMS = 60 * 1000;
+                _serviceListener.SocketTimeOutMS =  60 * 1000;
                 IPEndPoint listenPoint = new IPEndPoint(ipaddress, port);
                 _serviceListener.OnClientConnChange += _serviceListener_OnClientConnChange; ;
                 _serviceListener.OnReceived += _serviceListener_OnReceived; ;
@@ -54,6 +54,8 @@ namespace Service
             }
         }
 
+
+
         private void _serviceListener_OnServiceStatusChange(ConnStatusChangeArgs obj)
         {
 
@@ -63,9 +65,17 @@ namespace Service
         {
         }
 
+
+        private int _successCount = 0;
+
+
         private void _serviceListener_OnClientConnChange(ConnStatusChangeArgs obj)
         {
-
+            if (obj.IsConnected)
+                Interlocked.Increment(ref _successCount);
+            else
+                Interlocked.Decrement(ref _successCount);
+            Console.WriteLine("count:" + _successCount);
         }
     }
 }

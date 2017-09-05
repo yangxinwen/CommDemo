@@ -173,16 +173,23 @@ namespace DuiAsynSocket
         }
         private void OnIOComplete(object sender, SocketAsyncEventArgs e)
         {
-            switch (e.LastOperation)
+            try
             {
-                case SocketAsyncOperation.Receive:
-                    ProcessReceive(e);
-                    break;
-                case SocketAsyncOperation.Send:
-                    ProcessSend(e);
-                    break;
-                default:
-                    break;
+                switch (e.LastOperation)
+                {
+                    case SocketAsyncOperation.Receive:
+                        ProcessReceive(e);
+                        break;
+                    case SocketAsyncOperation.Send:
+                        ProcessSend(e);
+                        break;
+                    default:
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine(ex.Message);
             }
         }
         private void ProcessSend(SocketAsyncEventArgs e)
@@ -214,7 +221,7 @@ namespace DuiAsynSocket
         {
             try
             {
-                if (e.SocketError == SocketError.Success)
+                if (e.SocketError == SocketError.Success && e.BytesTransferred > 0)
                 {
                     if (IsSplitPack)
                     {
